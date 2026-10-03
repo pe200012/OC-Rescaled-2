@@ -4,40 +4,96 @@ import li.cil.oc.riscv.bus.DeviceBus;
 import li.cil.oc.riscv.terminal.KeyboardInput;
 import li.cil.oc.riscv.terminal.Terminal;
 import li.cil.oc.riscv.terminal.TerminalRenderer;
+import li.cil.sedna.api.device.BlockDevice;
 
-import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Drives a machine the way the architecture does, with the console rendered onto a character grid.
  */
-final class TestMachine {
+final class TestMachine implements AutoCloseable {
     private static final int MEMORY_SIZE = 32 * 1024 * 1024;
     private static final long MAX_CYCLES = 2_000_000_000L;
     private static final int CYCLES_PER_STEP = 10_000;
     private static final int KEY_RETURN = 28;
 
+    private static final DeviceBus.Devices NO_DEVICES = new DeviceBus.Devices() {
+        @Override
+        public int generation() {
+            return 0;
+        }
+
+        @Override
+        public List<DeviceBus.DeviceInfo> list() {
+            return List.of();
+        }
+
+        @Override
+        public List<DeviceBus.MethodInfo> methods(final java.util.UUID device) {
+            return null;
+        }
+
+        @Override
+        public Object[] invoke(final java.util.UUID device, final String method, final Object[] arguments, final boolean isMainThread) throws Exception {
+            throw new NoSuchMethodException();
+        }
+    };
+
     final RiscvMachine machine;
-    @Nullable final DeviceBus bus;
+    final DeviceBus bus;
     private final Terminal terminal = new Terminal();
     private final KeyboardInput keyboard = new KeyboardInput(terminal);
     private final TerminalRenderer renderer = new TerminalRenderer();
     private final char[][] screen = new char[Terminal.HEIGHT][Terminal.WIDTH];
     private long cycles;
 
-    TestMachine(@Nullable final DeviceBus.Devices devices) throws Exception {
+    private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks) throws Exception {
         for (final char[] row : screen) {
             Arrays.fill(row, ' ');
         }
-        machine = new RiscvMachine(MEMORY_SIZE, RiscvMachine.createDefaultRootDisk());
-        bus = devices != null
-            ? new DeviceBus(devices, machine.getRpcPort(), machine.getBlobPort(), machine.getEventPort())
-            : null;
-        machine.boot();
+        machine = new RiscvMachine(MEMORY_SIZE, disks);
+        bus = new DeviceBus(devices, machine.getRpcPort(), machine.getBlobPort(), machine.getEventPort());
     }
+
+    static TestMachine boot() throws Exception {
+        return boot(NO_DEVICES, List.of(RiscvMachine.createVolatileRootDisk()));
+    }
+
+    static TestMachine boot(final List<BlockDevice> disks) throws Exception {
+        return boot(NO_DEVICES, disks);
+    }
+
+    static TestMachine boot(final DeviceBus.Devices devices) throws Exception {
+        return boot(devices, List.of(RiscvMachine.createVolatileRootDisk()));
+    }
+
+    static TestMachine boot(final DeviceBus.Devices devices, final List<BlockDevice> disks) throws Exception {
+        final TestMachine test = new TestMachine(devices, disks);
+        test.machine.boot();
+        return test;
+    }
+
+    static TestMachine restore(final Path snapshot, final long id, final List<BlockDevice> disks) throws Exception {
+        final TestMachine test = new TestMachine(NO_DEVICES, disks);
+        assertTrue(MachineSnapshot.read(snapshot, id, test.machine, test.bus, test.terminal), "No snapshot to restore.");
+        return test;
+    }
+
+    void snapshot(final Path file, final long id) throws Exception {
+        MachineSnapshot.write(file, id, machine, bus, terminal);
+    }
+
+    @Override
+    public void close() throws Exception {
+        machine.close();
+    }
+
+    // --------------------------------------------------------------------- //
 
     void login() throws Exception {
         awaitScreen("login:");
@@ -81,12 +137,10 @@ final class TestMachine {
         machine.step(CYCLES_PER_STEP);
         cycles += CYCLES_PER_STEP;
 
-        if (bus != null) {
-            bus.step();
-            // Stands in for the server thread picking up synchronized calls.
-            if (bus.hasMainThreadCall()) {
-                bus.runMainThreadCall();
-            }
+        bus.step();
+        // Stands in for the server thread picking up synchronized calls.
+        if (bus.hasMainThreadCall()) {
+            bus.runMainThreadCall();
         }
 
         final ByteBuffer output = ByteBuffer.allocate(4096);

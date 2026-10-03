@@ -62,7 +62,7 @@ public final class DeviceBusTest {
     @Test
     public void micropythonCallsComponentMethods() throws Exception {
         final FakeDevices devices = new FakeDevices();
-        final TestMachine test = new TestMachine(devices);
+        final TestMachine test = TestMachine.boot(devices);
 
         test.login();
         test.type("micropython -c \"from devices import bus; r=bus.find('redstone'); print('set', r.setOutput(1, 15)); print('in', r.getInput(3))\"");

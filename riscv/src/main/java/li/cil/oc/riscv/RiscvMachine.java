@@ -1,5 +1,6 @@
 package li.cil.oc.riscv;
 
+import li.cil.ceres.BinarySerialization;
 import li.cil.sedna.Sedna;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.BlockDevice;
@@ -19,18 +20,25 @@ import li.cil.sedna.fs.FileSystem;
 import li.cil.sedna.fs.ZipStreamFileSystem;
 import li.cil.sedna.riscv.R5Board;
 
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
- * A RISC-V board running the bundled Linux image: RAM, a UART console, a real time clock and one
- * root disk. Independent of Minecraft, so it can be booted from tests.
+ * A RISC-V board running the bundled Linux image: RAM, a UART console, a real time clock, disks,
+ * the device bus ports and the guest scripts. Independent of Minecraft, so it can be booted from tests.
  */
-public final class RiscvMachine {
+public final class RiscvMachine implements AutoCloseable {
     private static final long MEMORY_ADDRESS = 0x80000000L;
     private static final String BOOT_ARGUMENTS = "root=/dev/vda rw";
 
-    private static final int ROOT_DISK_INTERRUPT = 0x1;
+    // Disks sit at fixed addresses in slot order, so the first one is always /dev/vda.
+    private static final long DISK_BASE_ADDRESS = 0x20000000L;
+    private static final int DISK_STRIDE = 0x1000;
+    private static final int[] DISK_INTERRUPTS = {0x1, 0x6, 0x7, 0x8, 0x9, 0xC};
     private static final int BUS_INTERRUPT = 0x3;
     private static final int SCRIPTS_INTERRUPT = 0x5;
     private static final int UART_INTERRUPT = 0xA;
@@ -41,33 +49,52 @@ public final class RiscvMachine {
     private static final String SCRIPTS_TAG = "builtin";
     private static final String SCRIPTS_RESOURCE = "/li/cil/oc/riscv/scripts.zip";
 
+    private static final int STATE_VERSION = 1;
+    private static final int MEMORY_COPY_CHUNK = 64 * 1024;
+
     private static byte[] firmware;
     private static FileSystem scripts;
 
     private final R5Board board = new R5Board();
     private final PhysicalMemory memory;
     private final UART16550A uart = new UART16550A();
+    private final GoldfishRTC rtc = new GoldfishRTC(SystemTimeRealTimeCounter.get());
+    private final List<BlockDevice> disks;
+    private final VirtIOBlockDevice[] diskDevices;
     private final VirtIOConsoleDevice busPorts;
+    private final VirtIOFileSystemDevice builtin;
 
-    public RiscvMachine(final int memorySize, final BlockDevice rootDisk) throws IOException {
+    /**
+     * @param disks the disks in slot order; the first one is booted from. Closed with the machine.
+     */
+    public RiscvMachine(final int memorySize, final List<BlockDevice> disks) throws IOException {
+        if (disks.size() > DISK_INTERRUPTS.length) {
+            throw new IllegalArgumentException("At most " + DISK_INTERRUPTS.length + " disks are supported.");
+        }
         Sedna.initialize();
 
         memory = Memory.create(memorySize);
-        final GoldfishRTC rtc = new GoldfishRTC(SystemTimeRealTimeCounter.get());
-        final VirtIOBlockDevice disk = new VirtIOBlockDevice(board.getMemoryMap(), rootDisk);
+        this.disks = List.copyOf(disks);
+        diskDevices = new VirtIOBlockDevice[disks.size()];
         busPorts = new VirtIOConsoleDevice(board.getMemoryMap(), BUS_PORT_NAMES);
-        final VirtIOFileSystemDevice builtin = new VirtIOFileSystemDevice(board.getMemoryMap(), SCRIPTS_TAG, getScripts());
+        builtin = new VirtIOFileSystemDevice(board.getMemoryMap(), SCRIPTS_TAG, getScripts());
 
         uart.getInterrupt().set(UART_INTERRUPT, board.getInterruptController());
         rtc.getInterrupt().set(RTC_INTERRUPT, board.getInterruptController());
-        disk.getInterrupt().set(ROOT_DISK_INTERRUPT, board.getInterruptController());
         busPorts.getInterrupt().set(BUS_INTERRUPT, board.getInterruptController());
         builtin.getInterrupt().set(SCRIPTS_INTERRUPT, board.getInterruptController());
 
         if (!board.addDevice(MEMORY_ADDRESS, memory)) {
             throw new IllegalStateException("Failed mapping memory.");
         }
-        if (board.addDevice(uart).isEmpty() || board.addDevice(rtc).isEmpty() || board.addDevice(disk).isEmpty()
+        for (int i = 0; i < diskDevices.length; i++) {
+            diskDevices[i] = new VirtIOBlockDevice(board.getMemoryMap(), disks.get(i));
+            diskDevices[i].getInterrupt().set(DISK_INTERRUPTS[i], board.getInterruptController());
+            if (!board.addDevice(DISK_BASE_ADDRESS + (long) i * DISK_STRIDE, diskDevices[i])) {
+                throw new IllegalStateException("Failed mapping disk " + i + ".");
+            }
+        }
+        if (board.addDevice(uart).isEmpty() || board.addDevice(rtc).isEmpty()
             || board.addDevice(busPorts).isEmpty() || board.addDevice(builtin).isEmpty()) {
             throw new IllegalStateException("Failed mapping devices.");
         }
@@ -78,10 +105,17 @@ public final class RiscvMachine {
     }
 
     /**
-     * A fresh, writable copy of the bundled root file system.
+     * A fresh, writable in-memory copy of the bundled root file system. Lost when the machine is.
      */
-    public static BlockDevice createDefaultRootDisk() throws IOException {
+    public static BlockDevice createVolatileRootDisk() throws IOException {
         return ByteBufferBlockDevice.createFromStream(Buildroot.getRootFilesystem(), false);
+    }
+
+    /**
+     * The bundled root file system, e.g. for installing it onto a new disk.
+     */
+    public static InputStream openRootFilesystemImage() {
+        return Buildroot.getRootFilesystem();
     }
 
     // --------------------------------------------------------------------- //
@@ -113,6 +147,73 @@ public final class RiscvMachine {
         board.getCpu().setFrequency(value);
     }
 
+    @Override
+    public void close() throws Exception {
+        memory.close();
+        for (final BlockDevice disk : disks) {
+            disk.close();
+        }
+    }
+
+    // --------------------------------------------------------------------- //
+
+    /**
+     * Writes the complete machine state: memory contents and the state of the CPU and all devices.
+     * Disk contents are not included, they live in their block devices.
+     */
+    public void saveState(final DataOutputStream output) throws IOException, MemoryAccessException {
+        output.writeInt(STATE_VERSION);
+        output.writeInt(memory.getLength());
+        final ByteBuffer chunk = ByteBuffer.allocate(MEMORY_COPY_CHUNK);
+        for (int offset = 0; offset < memory.getLength(); offset += MEMORY_COPY_CHUNK) {
+            chunk.clear().limit(Math.min(MEMORY_COPY_CHUNK, memory.getLength() - offset));
+            memory.load(offset, chunk);
+            output.write(chunk.array(), 0, chunk.limit());
+        }
+
+        output.writeInt(diskDevices.length);
+        BinarySerialization.serialize(output, board, R5Board.class);
+        BinarySerialization.serialize(output, uart, UART16550A.class);
+        BinarySerialization.serialize(output, rtc, GoldfishRTC.class);
+        for (final VirtIOBlockDevice disk : diskDevices) {
+            BinarySerialization.serialize(output, disk, VirtIOBlockDevice.class);
+        }
+        BinarySerialization.serialize(output, busPorts, VirtIOConsoleDevice.class);
+        BinarySerialization.serialize(output, builtin, VirtIOFileSystemDevice.class);
+    }
+
+    /**
+     * Restores a state written by {@link #saveState}, in place of booting. The machine must have been
+     * built with the same memory size and number of disks.
+     */
+    public void loadState(final DataInputStream input) throws IOException, MemoryAccessException {
+        if (input.readInt() != STATE_VERSION) {
+            throw new IOException("Unsupported machine state version.");
+        }
+        if (input.readInt() != memory.getLength()) {
+            throw new IOException("Memory size changed.");
+        }
+        final ByteBuffer chunk = ByteBuffer.allocate(MEMORY_COPY_CHUNK);
+        for (int offset = 0; offset < memory.getLength(); offset += MEMORY_COPY_CHUNK) {
+            final int length = Math.min(MEMORY_COPY_CHUNK, memory.getLength() - offset);
+            input.readFully(chunk.array(), 0, length);
+            chunk.clear().limit(length);
+            memory.store(offset, chunk);
+        }
+
+        if (input.readInt() != diskDevices.length) {
+            throw new IOException("Disks changed.");
+        }
+        BinarySerialization.deserialize(input, R5Board.class, board);
+        BinarySerialization.deserialize(input, UART16550A.class, uart);
+        BinarySerialization.deserialize(input, GoldfishRTC.class, rtc);
+        for (final VirtIOBlockDevice disk : diskDevices) {
+            BinarySerialization.deserialize(input, VirtIOBlockDevice.class, disk);
+        }
+        BinarySerialization.deserialize(input, VirtIOConsoleDevice.class, busPorts);
+        BinarySerialization.deserialize(input, VirtIOFileSystemDevice.class, builtin);
+    }
+
     // --------------------------------------------------------------------- //
 
     /**
@@ -129,8 +230,6 @@ public final class RiscvMachine {
     public void writeConsole(final byte value) {
         uart.putByte(value);
     }
-
-    // --------------------------------------------------------------------- //
 
     public SerialDevice getRpcPort() {
         return busPorts.getPort(0);

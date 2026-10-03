@@ -3,6 +3,7 @@ package li.cil.oc.server.machine.riscv;
 import li.cil.oc.api.Driver;
 import li.cil.oc.api.driver.DriverItem;
 import li.cil.oc.api.driver.item.Memory;
+import li.cil.oc.api.driver.item.Processor;
 import li.cil.oc.api.internal.TextBuffer;
 import li.cil.oc.api.machine.Architecture;
 import li.cil.oc.api.machine.ExecutionResult;
@@ -10,11 +11,13 @@ import li.cil.oc.api.machine.Machine;
 import li.cil.oc.api.machine.Signal;
 import li.cil.oc.api.network.Network;
 import li.cil.oc.api.network.Node;
+import li.cil.oc.riscv.MachineSnapshot;
 import li.cil.oc.riscv.RiscvMachine;
 import li.cil.oc.riscv.bus.DeviceBus;
 import li.cil.oc.riscv.terminal.KeyboardInput;
 import li.cil.oc.riscv.terminal.Terminal;
 import li.cil.oc.riscv.terminal.TerminalRenderer;
+import li.cil.sedna.api.device.BlockDevice;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import org.apache.logging.log4j.LogManager;
@@ -25,15 +28,19 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.ConcurrentModificationException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Runs a RISC-V Linux machine instead of a Lua state. The console is drawn onto the first screen
  * connected to the machine and fed by its keyboards. Components and signals reach the guest
  * through the device bus, as devices and events.
  * <p>
- * Not persisted yet: a machine that gets loaded while running boots again from scratch.
+ * Hard drives become the machine's disks, the first one booted from. A machine with hard drives is
+ * saved with the world and resumes where it was when loaded; one without boots from a volatile
+ * copy of the bundled system and starts over when loaded.
  */
 @Architecture.Name("RISC-V")
 public final class RiscvArchitecture implements Architecture {
@@ -42,15 +49,18 @@ public final class RiscvArchitecture implements Architecture {
     // Memory items report their size in KiB sized for Lua; Linux wants a lot more.
     private static final int MEMORY_SCALE = 16;
     private static final int MAX_MEMORY_SIZE = 256 * 1024 * 1024;
-    private static final int FREQUENCY = 25_000_000;
+    private static final int[] FREQUENCIES_BY_TIER = {25_000_000, 50_000_000, 100_000_000, 200_000_000};
     private static final int TICKS_PER_SECOND = 20;
     private static final int CYCLES_PER_SLICE = 10_000;
     private static final int CONSOLE_BUFFER_SIZE = 4096;
+    private static final String SNAPSHOT_TAG = "oc:riscvSnapshot";
 
     private final Machine machine;
     private int memorySize;
 
     private RiscvMachine vm;
+    private boolean isPersistent;
+    private boolean needsBoot;
     private ComponentDevices devices;
     private DeviceBus bus;
     private int remainingCycles;
@@ -87,20 +97,26 @@ public final class RiscvArchitecture implements Architecture {
         return memorySize > 0;
     }
 
+    /**
+     * Builds the machine on the server thread. Booting waits for the first run, so that a machine
+     * being loaded can be restored from its snapshot instead.
+     */
     @Override
     public boolean initialize() {
         try {
-            vm = new RiscvMachine(memorySize, RiscvMachine.createDefaultRootDisk());
-            vm.setFrequency(FREQUENCY);
+            final List<BlockDevice> disks = RiscvStorage.openDisks(machine.host());
+            isPersistent = !disks.isEmpty();
+            vm = new RiscvMachine(memorySize, isPersistent ? disks : List.of(RiscvMachine.createVolatileRootDisk()));
+            vm.setFrequency(frequency());
             devices = new ComponentDevices(machine);
             bus = new DeviceBus(devices, vm.getRpcPort(), vm.getBlobPort(), vm.getEventPort());
-            remainingCycles = 0;
             terminal = new Terminal();
             keyboard = new KeyboardInput(terminal);
             renderer = new TerminalRenderer();
+            remainingCycles = 0;
             screen = null;
             pendingScreen = null;
-            vm.boot();
+            needsBoot = true;
             return true;
         } catch (final Exception e) {
             LOGGER.warn("Failed starting RISC-V machine.", e);
@@ -111,6 +127,13 @@ public final class RiscvArchitecture implements Architecture {
 
     @Override
     public void close() {
+        if (vm != null) {
+            try {
+                vm.close();
+            } catch (final Exception e) {
+                LOGGER.warn("Failed closing RISC-V machine.", e);
+            }
+        }
         vm = null;
         devices = null;
         bus = null;
@@ -145,6 +168,11 @@ public final class RiscvArchitecture implements Architecture {
     @Override
     public ExecutionResult runThreaded(final boolean isSynchronizedReturn) {
         try {
+            if (needsBoot) {
+                vm.boot();
+                needsBoot = false;
+            }
+
             final TextBuffer found = findScreen();
             if (found == null) {
                 screen = null;
@@ -187,15 +215,57 @@ public final class RiscvArchitecture implements Architecture {
     public void onConnect() {
     }
 
+    // --------------------------------------------------------------------- //
+
+    /**
+     * Restores the snapshot the machine was saved with. Runs right after {@link #initialize()}.
+     */
     @Override
     public void load(final NBTTagCompound nbt) {
+        if (vm == null || !isPersistent || !nbt.hasKey(SNAPSHOT_TAG)) {
+            return;
+        }
+        try {
+            if (MachineSnapshot.read(RiscvStorage.snapshot(machine.node().address()), nbt.getLong(SNAPSHOT_TAG), vm, bus, terminal)) {
+                vm.setFrequency(frequency());
+                needsBoot = false;
+            }
+        } catch (final Exception e) {
+            // The restore may have stopped halfway, so start over on fresh devices.
+            LOGGER.warn("Failed restoring RISC-V machine, booting it again.", e);
+            close();
+            initialize();
+        }
     }
 
+    /**
+     * Writes a snapshot of the running machine. The machine is not executing while this runs.
+     */
     @Override
     public void save(final NBTTagCompound nbt) {
+        if (vm == null || !isPersistent || needsBoot) {
+            return;
+        }
+        final long id = ThreadLocalRandom.current().nextLong();
+        try {
+            MachineSnapshot.write(RiscvStorage.snapshot(machine.node().address()), id, vm, bus, terminal);
+            nbt.setLong(SNAPSHOT_TAG, id);
+        } catch (final Exception e) {
+            LOGGER.warn("Failed saving RISC-V machine, it will boot again when loaded.", e);
+        }
     }
 
     // --------------------------------------------------------------------- //
+
+    private int frequency() {
+        for (final ItemStack stack : machine.host().internalComponents()) {
+            final DriverItem driver = stack.isEmpty() ? null : Driver.driverFor(stack);
+            if (driver instanceof Processor) {
+                return FREQUENCIES_BY_TIER[Math.max(0, Math.min(driver.tier(stack), FREQUENCIES_BY_TIER.length - 1))];
+            }
+        }
+        return FREQUENCIES_BY_TIER[0];
+    }
 
     private void render() {
         if (screen == null) {

@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 public final class RiscvMachineBootTest {
     @Test
     public void bootsToShellOnTerminalAndPowersOff() throws Exception {
-        final TestMachine test = new TestMachine(null);
+        final TestMachine test = TestMachine.boot();
         test.login();
         test.type("echo hi-$((6*7))");
         test.awaitScreen("hi-42");

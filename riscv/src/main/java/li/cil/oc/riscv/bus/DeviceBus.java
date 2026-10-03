@@ -6,9 +6,13 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
+import li.cil.ceres.BinarySerialization;
 import li.cil.sedna.api.device.serial.SerialDevice;
 
 import javax.annotation.Nullable;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -156,6 +160,35 @@ public final class DeviceBus {
         invoke(invocation, true);
         // Cleared last, so the executor thread does not read the next message before the reply is out.
         mainThreadCall = null;
+    }
+
+    public void saveState(final DataOutputStream output) throws IOException {
+        BinarySerialization.serialize(output, messages, RPCMessageChannel.class);
+        BinarySerialization.serialize(output, payloads, RPCPayloadChannel.class);
+        BinarySerialization.serialize(output, events, RPCEventChannel.class);
+        output.writeInt(generation);
+
+        // A call waiting for the main thread when the game saves must still get its reply later.
+        final Invocation invocation = mainThreadCall;
+        output.writeBoolean(invocation != null);
+        if (invocation != null) {
+            output.writeInt(invocation.requestId());
+            output.writeUTF(invocation.device().toString());
+            output.writeUTF(invocation.method());
+            output.writeUTF(invocation.parameters().toString());
+        }
+    }
+
+    public void loadState(final DataInputStream input) throws IOException {
+        BinarySerialization.deserialize(input, RPCMessageChannel.class, messages);
+        BinarySerialization.deserialize(input, RPCPayloadChannel.class, payloads);
+        BinarySerialization.deserialize(input, RPCEventChannel.class, events);
+        generation = input.readInt();
+
+        mainThreadCall = input.readBoolean()
+            ? new Invocation(input.readInt(), UUID.fromString(input.readUTF()), input.readUTF(),
+                JsonParser.parseString(input.readUTF()).getAsJsonArray())
+            : null;
     }
 
     /**
