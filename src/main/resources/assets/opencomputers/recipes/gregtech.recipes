@@ -65,29 +65,24 @@ ram1 {
   time: 250
 }
 ram2 {
-  input: [["oc:circuitChip1", "oc:circuitChip1", "oc:circuitChip1"]
-          ["oc:ram1", "oc:materialCircuitBoardPrinted", "oc:ram1"]
-          ["", craftingToolWrench, ""]]
+  type: shapeless
+  input: ["oc:ram1", "oc:ram1"]
 }
 ram3 {
-  input: [["oc:circuitChip2", "oc:circuitChip2", "oc:circuitChip2"]
-          ["oc:ram2", "oc:materialCircuitBoardPrinted", "oc:ram2"]
-          [circuitElite, craftingToolWrench, circuitElite]]
+  type: shapeless
+  input: ["oc:ram2", "oc:ram2"]
 }
 ram4 {
-  input: [["oc:circuitChip2", "oc:circuitChip2", "oc:circuitChip2"]
-          ["oc:ram3", "oc:materialCircuitBoardPrinted", "oc:ram3"]
-          [circuitElite, craftingToolWrench, circuitElite]]
+  type: shapeless
+  input: ["oc:ram3", "oc:ram3"]
 }
 ram5 {
-  input: [["oc:circuitChip3", "oc:circuitChip3", "oc:circuitChip3"]
-          ["oc:ram4", "oc:materialCircuitBoardPrinted", "oc:ram4"]
-          [circuitUltimate, craftingToolWrench, circuitUltimate]]
+  type: shapeless
+  input: ["oc:ram4", "oc:ram4"]
 }
 ram6 {
-  input: [["oc:circuitChip3", "oc:circuitChip3", "oc:circuitChip3"]
-          ["oc:ram5", "oc:materialCircuitBoardPrinted", "oc:ram5"]
-          [circuitUltimate, craftingToolWrench, circuitUltimate]]
+  type: shapeless
+  input: ["oc:ram5", "oc:ram5"]
 }
 
 floppy {

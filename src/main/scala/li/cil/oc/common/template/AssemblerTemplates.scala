@@ -75,7 +75,7 @@ object AssemblerTemplates {
     def validate(inventory: IInventory, slot: Int, stack: ItemStack) = validator match {
       case Some(method) => IMC.tryInvokeStatic(method, inventory, slot.asInstanceOf[AnyRef], tier.asInstanceOf[AnyRef], stack)(false)
       case _ => Option(hostClass.fold(api.Driver.driverFor(stack))(api.Driver.driverFor(stack, _))) match {
-        case Some(driver) => try driver.slot(stack) == kind && driver.tier(stack) <= tier catch {
+        case Some(driver) => try driver.slot(stack) == kind && li.cil.oc.common.Tier.fits(driver.tier(stack), tier) catch {
           case t: AbstractMethodError =>
             OpenComputers.log.warn(s"Error trying to query driver '${driver.getClass.getName}' for slot and/or tier information. Probably their fault. Yell at them before coming to OpenComputers for support. :P")
             false

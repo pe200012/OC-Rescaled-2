@@ -3,6 +3,7 @@ package li.cil.oc.common.recipe
 import com.typesafe.config.*
 import li.cil.oc.*
 import li.cil.oc.common.Loot
+import li.cil.oc.common.Retired
 import li.cil.oc.common.block.SimpleBlock
 import li.cil.oc.common.init.Items
 import li.cil.oc.common.item.Delegator
@@ -139,9 +140,14 @@ object Recipes {
         })
       val recipes = ConfigFactory.parseFile(userRecipes, config)
 
+      Retired.registerReplacements()
+
       // Register all known recipes.
       for ((stack, name) <- list) {
-        if (recipes.hasPath(name)) {
+        if (Retired.contains(name)) {
+          hide(stack)
+        }
+        else if (recipes.hasPath(name)) {
           val value = recipes.getValue(name)
           value.valueType match {
             case ConfigValueType.OBJECT =>

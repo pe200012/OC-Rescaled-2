@@ -268,7 +268,7 @@ class Relay extends traits.Hub with traits.ComponentInventory with traits.PowerA
   override def isItemValidForSlot(slot: Int, stack: ItemStack): Boolean =
     Option(Driver.driverFor(stack, getClass)).fold(false)(driver => {
       val provided = InventorySlots.relay(slot)
-      val tierSatisfied = driver.slot(stack) == provided.slot && driver.tier(stack) <= provided.tier
+      val tierSatisfied = driver.slot(stack) == provided.slot && Tier.fits(driver.tier(stack), provided.tier)
       val cardTypeSatisfied = if (provided.slot == Slot.Card) api.Items.get(stack) == WirelessNetworkCardTier1 ||
         api.Items.get(stack) == WirelessNetworkCardTier2 || api.Items.get(stack) == LinkedCard else true
       tierSatisfied && cardTypeSatisfied

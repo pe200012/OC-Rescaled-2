@@ -50,10 +50,9 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class RiscvArchitecture implements Architecture {
     private static final Logger LOGGER = LogManager.getLogger("OpenComputers/RISC-V");
 
-    // Memory items report their size in KiB sized for Lua; Linux wants a lot more.
-    private static final int MEMORY_SCALE = 16;
     private static final int MAX_MEMORY_SIZE = 256 * 1024 * 1024;
-    private static final int[] FREQUENCIES_BY_TIER = {25_000_000, 50_000_000, 100_000_000, 200_000_000};
+    private static final int MEBIBYTE = 1024 * 1024;
+    private static final int HERTZ_PER_MEGAHERTZ = 1_000_000;
     private static final int TICKS_PER_SECOND = 20;
     private static final int CYCLES_PER_SLICE = 10_000;
     private static final int CONSOLE_BUFFER_SIZE = 4096;
@@ -65,6 +64,8 @@ public final class RiscvArchitecture implements Architecture {
 
     private final Machine machine;
     private int memorySize;
+    // What the host charges for the machine, before the cost of its clock rate and RAM.
+    private double baseCostPerTick = -1;
 
     private RiscvMachine vm;
     private String bootError;
@@ -106,7 +107,7 @@ public final class RiscvArchitecture implements Architecture {
                 kibibytes += ((Memory) driver).amount(stack);
             }
         }
-        memorySize = (int) Math.min(kibibytes * 1024 * MEMORY_SCALE, MAX_MEMORY_SIZE);
+        memorySize = (int) Math.min(kibibytes * 1024, MAX_MEMORY_SIZE);
         return memorySize > 0;
     }
 
@@ -138,7 +139,14 @@ public final class RiscvArchitecture implements Architecture {
             internetLinks = links;
             vm = new RiscvMachine(memorySize, firmware, isLiveSystem ? List.of(RiscvMachine.createVolatileRootDisk()) : disks,
                 network.networkCount() + internetLinks.size());
-            vm.setFrequency(frequency());
+            vm.setFrequency(megahertz() * HERTZ_PER_MEGAHERTZ);
+            // Faster clocks and more RAM draw more power.
+            if (baseCostPerTick < 0) {
+                baseCostPerTick = machine.getCostPerTick();
+            }
+            machine.setCostPerTick(baseCostPerTick
+                + megahertz() * RiscvSettings.costPerMegahertz()
+                + (double) memorySize / MEBIBYTE * RiscvSettings.costPerMegabyte());
             devices = new ComponentDevices(machine);
             bus = new DeviceBus(devices, vm.getRpcPort(), vm.getBlobPort(), vm.getEventPort());
             vm.getWindow().setDevices(devices);
@@ -275,7 +283,7 @@ public final class RiscvArchitecture implements Architecture {
         }
         try {
             if (MachineSnapshot.read(RiscvStorage.snapshot(machine.node().address()), nbt.getLong(SNAPSHOT_TAG), vm, bus, terminal)) {
-                vm.setFrequency(frequency());
+                vm.setFrequency(megahertz() * HERTZ_PER_MEGAHERTZ);
                 needsBoot = false;
             }
         } catch (final Exception e) {
@@ -353,14 +361,15 @@ public final class RiscvArchitecture implements Architecture {
         return true;
     }
 
-    private int frequency() {
+    // The clock rate set on the machine's CPU.
+    private int megahertz() {
         for (final ItemStack stack : machine.host().internalComponents()) {
             final DriverItem driver = stack.isEmpty() ? null : Driver.driverFor(stack);
             if (driver instanceof Processor) {
-                return FREQUENCIES_BY_TIER[Math.max(0, Math.min(driver.tier(stack), FREQUENCIES_BY_TIER.length - 1))];
+                return CpuClock.megahertz(stack);
             }
         }
-        return FREQUENCIES_BY_TIER[0];
+        return CpuClock.MEGAHERTZ[0];
     }
 
     private void render() {

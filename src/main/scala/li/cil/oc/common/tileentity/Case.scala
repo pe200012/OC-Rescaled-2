@@ -138,6 +138,6 @@ class Case(var tier: Int) extends traits.PowerAcceptor with traits.Computer with
   override def isItemValidForSlot(slot: Int, stack: ItemStack) =
     Option(Driver.driverFor(stack, getClass)).fold(false)(driver => {
       val provided = InventorySlots.computer(tier)(slot)
-      driver.slot(stack) == provided.slot && driver.tier(stack) <= provided.tier
+      driver.slot(stack) == provided.slot && Tier.fits(driver.tier(stack), provided.tier)
     })
 }

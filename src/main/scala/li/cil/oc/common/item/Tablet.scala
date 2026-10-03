@@ -357,7 +357,7 @@ class TabletWrapper(var stack: ItemStack, var player: EntityPlayer) extends Comp
       // because clip-on keyboards kinda seem to make sense, I guess.
       driver != DriverScreen &&
         driver.slot(stack) == containerSlotType &&
-        driver.tier(stack) <= containerSlotTier
+        Tier.fits(driver.tier(stack), containerSlotTier)
     case _ => false
   })
 

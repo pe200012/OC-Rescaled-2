@@ -27,8 +27,6 @@ import java.util.UUID;
 final class RiscvStorage {
     private static final String DIRECTORY = "opencomputers-riscv";
     private static final String DISK_TAG = "oc:riscvDisk";
-    private static final long MEBIBYTE = 1024 * 1024;
-    private static final long[] DISK_SIZES = {16 * MEBIBYTE, 32 * MEBIBYTE, 64 * MEBIBYTE};
 
     private RiscvStorage() {
     }
@@ -52,7 +50,7 @@ final class RiscvStorage {
 
                 final Path image = root().resolve("disks").resolve(diskId(stack, host) + ".img");
                 final boolean isNew = !Files.exists(image);
-                final FileBlockDevice disk = FileBlockDevice.open(image, DISK_SIZES[Math.max(0, Math.min(driver.tier(stack), DISK_SIZES.length - 1))]);
+                final FileBlockDevice disk = FileBlockDevice.open(image, RiscvSettings.diskSize(driver.tier(stack)));
                 disks.add(disk);
                 if (isNew && disks.size() == 1) {
                     try (final InputStream rootfs = RiscvMachine.openRootFilesystemImage()) {

@@ -767,7 +767,7 @@ class Robot extends traits.Computer with traits.PowerInformation with traits.Rot
       driver != DriverScreen &&
         driver != DriverKeyboard &&
         driver.slot(stack) == containerSlotType(i) &&
-        driver.tier(stack) <= containerSlotTier(i)
+        Tier.fits(driver.tier(stack), containerSlotTier(i))
     case (i, _) if isInventorySlot(i) => true // Normal inventory.
     case _ => false // Invalid slot.
   }
