@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Timeout;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -51,7 +52,8 @@ public final class DeviceBusTest {
                     if (!isMainThread) {
                         throw DeviceBus.MainThreadRequired.INSTANCE;
                     }
-                    calls.add("getInput" + Arrays.toString(arguments) + " on main thread");
+                    calls.add("getInput" + Arrays.toString(Arrays.stream(arguments)
+                        .map(a -> a instanceof byte[] bytes ? HexFormat.of().formatHex(bytes) : a).toArray()) + " on main thread");
                     return new Object[]{7};
                 }
                 default -> throw new NoSuchMethodException();
@@ -65,12 +67,14 @@ public final class DeviceBusTest {
         final TestMachine test = TestMachine.boot(devices);
 
         test.login();
-        test.type("micropython -c \"from devices import bus; r=bus.find('redstone'); print('set', r.setOutput(1, 15)); print('in', r.getInput(3))\"");
-        test.awaitScreen("in 7");
+        test.type("micropython -c \"from devices import bus; r=bus.find('redstone'); print('set', r.setOutput(1, 15)); "
+            + "print('in', r.getInput(3)); print('bin', r.getInput(bus.blob(b'\\xff\\x00\\x01')))\"");
+        test.awaitScreen("bin 7");
 
         final String screen = test.screenText();
         // Numbers pass through the guest's bus daemon, which writes 0.0 back as 0.
         assertTrue(screen.lines().anyMatch(line -> line.strip().equals("set 0")), screen);
-        assertEquals(List.of("setOutput[1.0, 15.0]", "getInput[3.0] on main thread"), devices.calls);
+        // Binary goes along to calls that wait for the main thread.
+        assertEquals(List.of("setOutput[1.0, 15.0]", "getInput[3.0] on main thread", "getInput[ff0001] on main thread"), devices.calls);
     }
 }

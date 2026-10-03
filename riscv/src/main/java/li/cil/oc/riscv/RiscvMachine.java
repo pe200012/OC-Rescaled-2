@@ -83,7 +83,7 @@ public final class RiscvMachine implements AutoCloseable {
     private static final String SCRIPTS_TAG = "builtin";
     private static final String SCRIPTS_RESOURCE = "/li/cil/oc/riscv/scripts.zip";
 
-    private static final int STATE_VERSION = 5;
+    private static final int STATE_VERSION = 6;
     private static final int MEMORY_COPY_CHUNK = 64 * 1024;
 
     private static byte[] linuxBootloader;

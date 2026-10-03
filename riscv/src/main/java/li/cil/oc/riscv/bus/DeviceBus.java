@@ -42,7 +42,6 @@ public final class DeviceBus {
     static final String ERROR_PAYLOAD_MISMATCH = "payload does not match its description";
     static final String ERROR_MALFORMED_MESSAGE = "malformed message";
     static final String ERROR_INTERNAL = "internal error";
-    static final String ERROR_PAYLOAD_NEEDS_UNSYNCHRONIZED = "binary parameters require a method that is not synchronized";
 
     private static final String MESSAGE_TYPE_LIST = "list";
     private static final String MESSAGE_TYPE_METHODS = "methods";
@@ -91,7 +90,8 @@ public final class DeviceBus {
         }
     }
 
-    private record Invocation(int requestId, UUID device, String method, JsonArray parameters) {
+    // The payload sent along, if any, goes with a call that has to wait for the main thread.
+    private record Invocation(int requestId, UUID device, String method, JsonArray parameters, @Nullable byte[] blob) {
     }
 
     // --------------------------------------------------------------------- //
@@ -157,7 +157,12 @@ public final class DeviceBus {
             return;
         }
         currentRequestId = invocation.requestId();
-        invoke(invocation, true);
+        receivedBlob = invocation.blob();
+        try {
+            invoke(invocation, true);
+        } finally {
+            receivedBlob = null;
+        }
         // Cleared last, so the executor thread does not read the next message before the reply is out.
         mainThreadCall = null;
     }
@@ -176,6 +181,10 @@ public final class DeviceBus {
             output.writeUTF(invocation.device().toString());
             output.writeUTF(invocation.method());
             output.writeUTF(invocation.parameters().toString());
+            output.writeInt(invocation.blob() != null ? invocation.blob().length : -1);
+            if (invocation.blob() != null) {
+                output.write(invocation.blob());
+            }
         }
     }
 
@@ -187,7 +196,7 @@ public final class DeviceBus {
 
         mainThreadCall = input.readBoolean()
             ? new Invocation(input.readInt(), UUID.fromString(input.readUTF()), input.readUTF(),
-                JsonParser.parseString(input.readUTF()).getAsJsonArray())
+                JsonParser.parseString(input.readUTF()).getAsJsonArray(), readBlob(input))
             : null;
     }
 
@@ -208,6 +217,17 @@ public final class DeviceBus {
     }
 
     // --------------------------------------------------------------------- //
+
+    @Nullable
+    private static byte[] readBlob(final DataInputStream input) throws IOException {
+        final int length = input.readInt();
+        if (length < 0) {
+            return null;
+        }
+        final byte[] blob = new byte[length];
+        input.readFully(blob);
+        return blob;
+    }
 
     private void rejectOversizedMessage() {
         payloads.discard();
@@ -263,7 +283,8 @@ public final class DeviceBus {
                     currentRequestId,
                     UUID.fromString(data.get("deviceId").getAsString()),
                     data.get("name").getAsString(),
-                    parameters != null && parameters.isJsonArray() ? parameters.getAsJsonArray() : new JsonArray()), false);
+                    parameters != null && parameters.isJsonArray() ? parameters.getAsJsonArray() : new JsonArray(),
+                    null), false);
             }
             default -> writeError(ERROR_UNKNOWN_MESSAGE_TYPE);
         }
@@ -323,10 +344,11 @@ public final class DeviceBus {
         try {
             results = devices.invoke(invocation.device(), invocation.method(), arguments, isMainThread);
         } catch (final MainThreadRequired e) {
-            if (isMainThread || receivedBlob != null) {
-                writeError(isMainThread ? ERROR_INTERNAL : ERROR_PAYLOAD_NEEDS_UNSYNCHRONIZED);
+            if (isMainThread) {
+                writeError(ERROR_INTERNAL);
             } else {
-                mainThreadCall = invocation;
+                mainThreadCall = new Invocation(invocation.requestId(), invocation.device(), invocation.method(),
+                    invocation.parameters(), receivedBlob);
             }
             return;
         } catch (final NoSuchMethodException e) {
