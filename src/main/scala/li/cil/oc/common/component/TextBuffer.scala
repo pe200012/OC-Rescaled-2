@@ -501,8 +501,11 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
 object TextBuffer {
   var clientBuffers = mutable.ListBuffer.empty[TextBuffer]
 
+  // Client buffers belong to the client thread. The integrated server posts these events for its
+  // own worlds on the server thread too, which must not touch them.
   @SubscribeEvent
   def onChunkUnload(e: ChunkEvent.Unload):Unit = {
+    if (!e.getWorld.isRemote) return
     val chunk = e.getChunk
     clientBuffers = clientBuffers.filter(t => {
       val blockPos = BlockPosition(t.host)
@@ -516,6 +519,7 @@ object TextBuffer {
 
   @SubscribeEvent
   def onWorldUnload(e: WorldEvent.Unload):Unit = {
+    if (!e.getWorld.isRemote) return
     clientBuffers = clientBuffers.filter(t => {
       val keep = t.host.world != e.getWorld
       if (!keep) {
