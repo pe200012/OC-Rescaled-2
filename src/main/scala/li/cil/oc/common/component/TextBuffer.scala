@@ -973,7 +973,7 @@ object TextBuffer {
         args += player.getName
       }
 
-      owner.node.sendToReachable("computer.checked_signal", args.toSeq)
+      owner.node.sendToReachable("computer.checked_signal", args.toSeq*)
     }
 
     private def sendToKeyboards(name: String, values: AnyRef*) : Unit = {
