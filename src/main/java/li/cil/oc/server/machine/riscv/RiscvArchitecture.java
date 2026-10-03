@@ -11,6 +11,7 @@ import li.cil.oc.api.machine.Signal;
 import li.cil.oc.api.network.Network;
 import li.cil.oc.api.network.Node;
 import li.cil.oc.riscv.RiscvMachine;
+import li.cil.oc.riscv.bus.DeviceBus;
 import li.cil.oc.riscv.terminal.KeyboardInput;
 import li.cil.oc.riscv.terminal.Terminal;
 import li.cil.oc.riscv.terminal.TerminalRenderer;
@@ -21,13 +22,16 @@ import org.apache.logging.log4j.Logger;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Runs a RISC-V Linux machine instead of a Lua state. The console is drawn onto the first screen
- * connected to the machine and fed by its keyboards.
+ * connected to the machine and fed by its keyboards. Components and signals reach the guest
+ * through the device bus, as devices and events.
  * <p>
  * Not persisted yet: a machine that gets loaded while running boots again from scratch.
  */
@@ -47,6 +51,9 @@ public final class RiscvArchitecture implements Architecture {
     private int memorySize;
 
     private RiscvMachine vm;
+    private ComponentDevices devices;
+    private DeviceBus bus;
+    private int remainingCycles;
     private Terminal terminal;
     private KeyboardInput keyboard;
     private TerminalRenderer renderer;
@@ -85,6 +92,9 @@ public final class RiscvArchitecture implements Architecture {
         try {
             vm = new RiscvMachine(memorySize, RiscvMachine.createDefaultRootDisk());
             vm.setFrequency(FREQUENCY);
+            devices = new ComponentDevices(machine);
+            bus = new DeviceBus(devices, vm.getRpcPort(), vm.getBlobPort(), vm.getEventPort());
+            remainingCycles = 0;
             terminal = new Terminal();
             keyboard = new KeyboardInput(terminal);
             renderer = new TerminalRenderer();
@@ -102,6 +112,8 @@ public final class RiscvArchitecture implements Architecture {
     @Override
     public void close() {
         vm = null;
+        devices = null;
+        bus = null;
         terminal = null;
         keyboard = null;
         renderer = null;
@@ -113,6 +125,8 @@ public final class RiscvArchitecture implements Architecture {
 
     @Override
     public void runSynchronized() {
+        bus.runMainThreadCall();
+
         // Changing the resolution is not safe from the executor thread.
         final TextBuffer candidate = pendingScreen;
         pendingScreen = null;
@@ -139,24 +153,25 @@ public final class RiscvArchitecture implements Architecture {
                 return new ExecutionResult.SynchronizedCall();
             }
 
+            devices.refresh();
             handleSignals();
 
-            int remaining = vm.getFrequency() / TICKS_PER_SECOND;
-            while (remaining > 0 && vm.isRunning()) {
+            // A synchronized call ends a slice early; what is left of the tick's budget carries over.
+            if (!isSynchronizedReturn) {
+                remainingCycles = vm.getFrequency() / TICKS_PER_SECOND;
+            }
+            while (remainingCycles > 0 && vm.isRunning()) {
                 vm.step(CYCLES_PER_SLICE);
-                remaining -= CYCLES_PER_SLICE;
+                remainingCycles -= CYCLES_PER_SLICE;
+                bus.step();
                 pumpConsole();
+                if (bus.hasMainThreadCall()) {
+                    render();
+                    return new ExecutionResult.SynchronizedCall();
+                }
             }
 
-            if (screen != null) {
-                final TextBuffer target = screen;
-                renderer.render(terminal, (column, row, text, foreground, background) -> {
-                    target.setForegroundColor(foreground);
-                    target.setBackgroundColor(background);
-                    target.set(column, row, text, false);
-                });
-            }
-
+            render();
             return vm.isRunning() ? new ExecutionResult.Sleep(1) : new ExecutionResult.Shutdown(false);
         } catch (final Throwable e) {
             LOGGER.warn("RISC-V machine failed.", e);
@@ -182,6 +197,18 @@ public final class RiscvArchitecture implements Architecture {
 
     // --------------------------------------------------------------------- //
 
+    private void render() {
+        if (screen == null) {
+            return;
+        }
+        final TextBuffer target = screen;
+        renderer.render(terminal, (column, row, text, foreground, background) -> {
+            target.setForegroundColor(foreground);
+            target.setBackgroundColor(background);
+            target.set(column, row, text, false);
+        });
+    }
+
     private void pumpConsole() {
         console.clear();
         int value;
@@ -202,6 +229,7 @@ public final class RiscvArchitecture implements Architecture {
         Signal signal;
         while ((signal = machine.popSignal()) != null) {
             final Object[] args = signal.args();
+            forwardToBus(signal.name(), args);
             switch (signal.name()) {
                 case "key_down" -> {
                     if (args.length >= 3) {
@@ -222,6 +250,13 @@ public final class RiscvArchitecture implements Architecture {
                 }
             }
         }
+    }
+
+    // Most signals name the component they come from first; that becomes the event's device.
+    private void forwardToBus(final String name, final Object[] args) {
+        final UUID device = args.length > 0 ? ComponentDevices.parseAddress(args[0]) : null;
+        final Object[] data = device != null ? Arrays.copyOfRange(args, 1, args.length) : args;
+        bus.sendEvent(device, name, data);
     }
 
     private TextBuffer findScreen() {

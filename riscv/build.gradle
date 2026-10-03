@@ -28,10 +28,12 @@ dependencies {
 
     implementation 'li.cil.sedna:sedna-buildroot:0.2.9'
     implementation 'it.unimi.dsi:fastutil:8.5.6'
+    implementation 'com.google.code.gson:gson:2.11.0'
 
     // Provided by Minecraft at runtime.
     compileOnly 'org.apache.logging.log4j:log4j-api:2.15.0'
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+    testCompileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 
     testImplementation platform('org.junit:junit-bom:5.11.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -59,10 +61,26 @@ shadowJar {
     dependencies {
         exclude(dependency('org.apache.logging.log4j:.*'))
         exclude(dependency('com.google.code.findbugs:.*'))
+        exclude(dependency('com.google.errorprone:.*'))
     }
     relocate 'it.unimi.dsi.fastutil', 'li.cil.oc.repack.fastutil'
     relocate 'org.apache.commons.io', 'li.cil.oc.repack.commons.io'
     relocate 'org.apache.commons.lang3', 'li.cil.oc.repack.commons.lang3'
     relocate 'org.objectweb.asm', 'li.cil.oc.repack.asm'
+    relocate 'com.google.gson', 'li.cil.oc.repack.gson'
     exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/versions/**', 'module-info.class'
+}
+
+// The guest's device bus libraries, served to the machine as a 9p file system.
+def packageScripts = tasks.register('packageScripts', Zip) {
+    archiveFileName = 'scripts.zip'
+    destinationDirectory = layout.buildDirectory.dir('scripts')
+    from 'src/main/scripts'
+    exclude '**/__pycache__/**', 'README.md'
+}
+
+processResources {
+    from(packageScripts) {
+        into 'li/cil/oc/riscv'
+    }
 }
