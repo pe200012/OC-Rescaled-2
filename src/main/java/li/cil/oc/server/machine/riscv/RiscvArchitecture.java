@@ -36,13 +36,14 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Runs a RISC-V Linux machine instead of a Lua state. The console is drawn onto the first screen
- * connected to the machine and fed by its keyboards. Components and signals reach the guest
- * through the device bus, as devices and events.
+ * Runs a RISC-V machine instead of a Lua state. It boots what is on its EEPROM: the Linux boot
+ * loader, or a bare-metal program. The console is drawn onto the screen next to the machine and fed
+ * by that screen's keyboards. Components and signals reach Linux through the device bus, and
+ * bare-metal programs through the component window.
  * <p>
- * Hard drives become the machine's disks, the first one booted from. A machine with hard drives is
- * saved with the world and resumes where it was when loaded; one without boots from a volatile
- * copy of the bundled system and starts over when loaded.
+ * Hard drives become the machine's disks, the first one booted from. Linux without hard drives
+ * boots from a volatile copy of the bundled system and starts over when loaded; all other machines
+ * are saved with the world and resume where they were.
  */
 @Architecture.Name("RISC-V")
 public final class RiscvArchitecture implements Architecture {
@@ -61,6 +62,7 @@ public final class RiscvArchitecture implements Architecture {
     private int memorySize;
 
     private RiscvMachine vm;
+    private String bootError;
     private boolean isPersistent;
     private boolean needsBoot;
     private ComponentDevices devices;
@@ -110,8 +112,17 @@ public final class RiscvArchitecture implements Architecture {
     @Override
     public boolean initialize() {
         try {
+            byte[] firmware = readEeprom();
+            // Errors are reported on the first run, like any other.
+            bootError = firmware == null ? "no bootable EEPROM"
+                : isText(firmware) ? "EEPROM holds text, not a RISC-V program"
+                : null;
+            if (bootError != null) {
+                firmware = RiscvMachine.linuxBootloader();
+            }
             final List<BlockDevice> disks = RiscvStorage.openDisks(machine.host());
-            isPersistent = !disks.isEmpty();
+            final boolean isLiveSystem = bootError == null && disks.isEmpty() && RiscvMachine.isLinuxBootloader(firmware);
+            isPersistent = !isLiveSystem;
             // Network cards come first, then internet cards, each with an interface of its own.
             network = new NetworkBridge(machine, NetworkBridge.findCards(machine));
             final List<String> internetCards = NetworkBridge.findComponents(machine, "internet");
@@ -120,11 +131,12 @@ public final class RiscvArchitecture implements Architecture {
                 links.add(new InternetLink(network.networkCount() + i, describeOrigin()));
             }
             internetLinks = links;
-            vm = new RiscvMachine(memorySize, isPersistent ? disks : List.of(RiscvMachine.createVolatileRootDisk()),
+            vm = new RiscvMachine(memorySize, firmware, isLiveSystem ? List.of(RiscvMachine.createVolatileRootDisk()) : disks,
                 network.networkCount() + internetLinks.size());
             vm.setFrequency(frequency());
             devices = new ComponentDevices(machine);
             bus = new DeviceBus(devices, vm.getRpcPort(), vm.getBlobPort(), vm.getEventPort());
+            vm.getWindow().setDevices(devices);
             terminal = new Terminal();
             keyboard = new KeyboardInput(terminal);
             renderer = new TerminalRenderer();
@@ -170,6 +182,7 @@ public final class RiscvArchitecture implements Architecture {
     @Override
     public void runSynchronized() {
         bus.runMainThreadCall();
+        vm.getWindow().runMainThreadCall();
         network.flush();
         if (needsScreenCheck) {
             needsScreenCheck = false;
@@ -180,6 +193,9 @@ public final class RiscvArchitecture implements Architecture {
     @Override
     public ExecutionResult runThreaded(final boolean isSynchronizedReturn) {
         try {
+            if (bootError != null) {
+                return new ExecutionResult.Error(bootError);
+            }
             if (needsBoot) {
                 vm.boot();
                 needsBoot = false;
@@ -207,7 +223,12 @@ public final class RiscvArchitecture implements Architecture {
                     link.exchange(vm);
                 }
                 pumpConsole();
-                if (bus.hasMainThreadCall()) {
+                final String panic = vm.getWindow().takePanic();
+                if (panic != null) {
+                    render();
+                    return new ExecutionResult.Error(panic);
+                }
+                if (bus.hasMainThreadCall() || vm.getWindow().hasMainThreadCall()) {
                     render();
                     return new ExecutionResult.SynchronizedCall();
                 }
@@ -217,6 +238,10 @@ public final class RiscvArchitecture implements Architecture {
             // Frames sent this tick go out together, as cards only send from the server thread.
             if (network.needsServerThread()) {
                 return new ExecutionResult.SynchronizedCall();
+            }
+            if (vm.isRestarting()) {
+                // Restart the whole machine, picking up changed EEPROMs, disks and cards.
+                return new ExecutionResult.Shutdown(true);
             }
             return vm.isRunning() ? new ExecutionResult.Sleep(1) : new ExecutionResult.Shutdown(false);
         } catch (final Throwable e) {
@@ -281,6 +306,30 @@ public final class RiscvArchitecture implements Architecture {
             (int) Math.floor(host.xPosition()), (int) Math.floor(host.yPosition()), (int) Math.floor(host.zPosition()));
     }
 
+    /**
+     * The code on the machine's EEPROM, or null if there is none or it is empty.
+     */
+    private byte[] readEeprom() throws Exception {
+        for (final String address : NetworkBridge.findComponents(machine, "eeprom")) {
+            final Object[] result = machine.invoke(address, "get", new Object[0]);
+            if (result != null && result.length > 0 && result[0] instanceof byte[] code && code.length > 0) {
+                return code;
+            }
+        }
+        return null;
+    }
+
+    // Programs, like old Lua BIOSes, would run off into a trap loop without saying anything.
+    private static boolean isText(final byte[] code) {
+        for (int i = 0; i < Math.min(code.length, 64); i++) {
+            final int value = code[i] & 0xFF;
+            if ((value < 0x20 || value > 0x7E) && value != 0x09 && value != 0x0A && value != 0x0D) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private int frequency() {
         for (final ItemStack stack : machine.host().internalComponents()) {
             final DriverItem driver = stack.isEmpty() ? null : Driver.driverFor(stack);
@@ -327,6 +376,7 @@ public final class RiscvArchitecture implements Architecture {
                 continue;
             }
             forwardToBus(signal.name(), args);
+            vm.getWindow().sendSignal(signal.name(), args);
             // Machines sharing a component network hear all keyboards; only ours type here.
             if (args.length == 0 || !keyboards.contains(String.valueOf(args[0]))) {
                 continue;

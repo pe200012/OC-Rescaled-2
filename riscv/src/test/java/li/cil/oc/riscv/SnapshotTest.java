@@ -49,7 +49,7 @@ public final class SnapshotTest {
             test.snapshot(snapshot, SNAPSHOT_ID);
         }
 
-        final RiscvMachine machine = new RiscvMachine(32 * 1024 * 1024, List.of(FileBlockDevice.open(diskImage, DISK_SIZE)));
+        final RiscvMachine machine = new RiscvMachine(32 * 1024 * 1024, RiscvMachine.linuxBootloader(), List.of(FileBlockDevice.open(diskImage, DISK_SIZE)), 0);
         try (machine) {
             assertFalse(MachineSnapshot.read(snapshot, SNAPSHOT_ID + 1, machine, null, null));
         }

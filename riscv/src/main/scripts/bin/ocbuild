@@ -1,0 +1,15 @@
+#!/bin/sh
+# Builds a bare-metal program into an image for an EEPROM, with tcc:
+#   ocbuild -o program.bin program.c [more.c ...]
+# Flash it with ocflash. The image starts with lib/oc/crt0.c, which runs main().
+
+OC_DIR=$(dirname "$(readlink -f "$0")")/..
+
+if [ $# -eq 0 ]; then
+    echo "Usage: ocbuild -o program.bin program.c [more.c ...]" >&2
+    exit 1
+fi
+
+exec tcc -nostdlib -static -DOC_BAREMETAL -I"$OC_DIR/include" \
+    -Wl,-Ttext=0x80000000 -Wl,--oformat=binary \
+    "$OC_DIR/lib/oc/crt0.c" "$@"

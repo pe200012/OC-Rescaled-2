@@ -1,0 +1,8 @@
+#!/bin/sh
+# Writes an image to the EEPROM, or reads it back:
+#   ocflash program.bin [label]
+#   ocflash -r backup.bin
+# Needs root, as it uses the component window.
+
+OC_DIR=$(dirname "$(readlink -f "$0")")/..
+exec tcc -run "$OC_DIR/lib/oc/ocflash.c" "$@"

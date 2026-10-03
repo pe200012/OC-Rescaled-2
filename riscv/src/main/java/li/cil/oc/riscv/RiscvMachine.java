@@ -1,12 +1,18 @@
 package li.cil.oc.riscv;
 
 import li.cil.ceres.BinarySerialization;
+import li.cil.oc.riscv.bus.ComponentWindow;
 import li.cil.sedna.Sedna;
 import li.cil.sedna.api.Sizes;
 import li.cil.sedna.api.device.BlockDevice;
+import li.cil.sedna.api.device.Device;
 import li.cil.sedna.api.device.PhysicalMemory;
 import li.cil.sedna.api.device.serial.SerialDevice;
+import li.cil.sedna.api.devicetree.DevicePropertyNames;
+import li.cil.sedna.api.devicetree.DeviceTree;
+import li.cil.sedna.api.devicetree.DeviceTreeProvider;
 import li.cil.sedna.api.memory.MemoryAccessException;
+import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.buildroot.Buildroot;
 import li.cil.sedna.device.block.ByteBufferBlockDevice;
 import li.cil.sedna.device.memory.Memory;
@@ -17,6 +23,7 @@ import li.cil.sedna.device.virtio.VirtIOBlockDevice;
 import li.cil.sedna.device.virtio.VirtIOConsoleDevice;
 import li.cil.sedna.device.virtio.VirtIOFileSystemDevice;
 import li.cil.sedna.device.virtio.VirtIONetworkDevice;
+import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.fs.FileSystem;
 import li.cil.sedna.fs.ZipStreamFileSystem;
 import li.cil.sedna.riscv.R5Board;
@@ -27,15 +34,22 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 /**
- * A RISC-V board running the bundled Linux image: RAM, a UART console, a real time clock, disks,
- * the device bus ports and the guest scripts. Independent of Minecraft, so it can be booted from tests.
+ * A RISC-V board: RAM, a UART console, a real time clock, disks, network interfaces, the device bus
+ * ports, the component window and the guest scripts. Boots the firmware it is given, copied to the
+ * start of RAM: the bundled Linux boot loader, or a bare-metal program. Independent of Minecraft,
+ * so it can be booted from tests.
  */
 public final class RiscvMachine implements AutoCloseable {
     private static final long MEMORY_ADDRESS = 0x80000000L;
-    private static final String BOOT_ARGUMENTS = "root=/dev/vda rw";
+    private static final long FIRMWARE_ALIGNMENT = 0x1000;
+    // Linux maps the component window as a UIO device, for programs to use without root's help.
+    private static final String WINDOW_COMPATIBLE = "oc,component-bus";
+    private static final String BOOT_ARGUMENTS = "root=/dev/vda rw uio_pdrv_genirq.of_id=" + WINDOW_COMPATIBLE;
 
     // Disks sit at fixed addresses in slot order, so the first one is always /dev/vda.
     private static final long DISK_BASE_ADDRESS = 0x20000000L;
@@ -45,7 +59,10 @@ public final class RiscvMachine implements AutoCloseable {
     private static final long NETWORK_BASE_ADDRESS = 0x21000000L;
     private static final int NETWORK_STRIDE = 0x1000;
     private static final int[] NETWORK_INTERRUPTS = {0xD, 0xE, 0xF, 0x10, 0x11, 0x12};
+    // Bare-metal programs find the component window here.
+    private static final long WINDOW_ADDRESS = 0x30000000L;
     private static final int BUS_INTERRUPT = 0x3;
+    private static final int WINDOW_INTERRUPT = 0x4;
     private static final int SCRIPTS_INTERRUPT = 0x5;
     private static final int UART_INTERRUPT = 0xA;
     private static final int RTC_INTERRUPT = 0xB;
@@ -55,12 +72,27 @@ public final class RiscvMachine implements AutoCloseable {
     private static final String SCRIPTS_TAG = "builtin";
     private static final String SCRIPTS_RESOURCE = "/li/cil/oc/riscv/scripts.zip";
 
-    private static final int STATE_VERSION = 2;
+    private static final int STATE_VERSION = 3;
     private static final int MEMORY_COPY_CHUNK = 64 * 1024;
 
-    private static byte[] firmware;
+    private static byte[] linuxBootloader;
     private static FileSystem scripts;
 
+    static {
+        DeviceTreeRegistry.putProvider(ComponentWindow.class, new DeviceTreeProvider() {
+            @Override
+            public Optional<String> getName(final Device device) {
+                return Optional.of("component-bus");
+            }
+
+            @Override
+            public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
+                node.addProp(DevicePropertyNames.COMPATIBLE, WINDOW_COMPATIBLE);
+            }
+        });
+    }
+
+    private final byte[] firmware;
     private final R5Board board = new R5Board();
     private final PhysicalMemory memory;
     private final UART16550A uart = new UART16550A();
@@ -70,16 +102,17 @@ public final class RiscvMachine implements AutoCloseable {
     private final VirtIONetworkDevice[] networkDevices;
     private final VirtIOConsoleDevice busPorts;
     private final VirtIOFileSystemDevice builtin;
-
-    public RiscvMachine(final int memorySize, final List<BlockDevice> disks) throws IOException {
-        this(memorySize, disks, 0);
-    }
+    private final ComponentWindow window;
 
     /**
+     * @param firmware     the program to run, such as {@link #linuxBootloader()}.
      * @param disks        the disks in slot order; the first one is booted from. Closed with the machine.
      * @param networkCount how many network interfaces the machine has.
      */
-    public RiscvMachine(final int memorySize, final List<BlockDevice> disks, final int networkCount) throws IOException {
+    public RiscvMachine(final int memorySize, final byte[] firmware, final List<BlockDevice> disks, final int networkCount) throws IOException {
+        if (firmware.length == 0 || firmware.length > memorySize / 2) {
+            throw new IllegalArgumentException("Firmware does not fit into memory.");
+        }
         if (disks.size() > DISK_INTERRUPTS.length) {
             throw new IllegalArgumentException("At most " + DISK_INTERRUPTS.length + " disks are supported.");
         }
@@ -88,17 +121,20 @@ public final class RiscvMachine implements AutoCloseable {
         }
         Sedna.initialize();
 
+        this.firmware = firmware.clone();
         memory = Memory.create(memorySize);
         this.disks = List.copyOf(disks);
         diskDevices = new VirtIOBlockDevice[disks.size()];
         networkDevices = new VirtIONetworkDevice[networkCount];
-        busPorts =new VirtIOConsoleDevice(board.getMemoryMap(), BUS_PORT_NAMES);
+        busPorts = new VirtIOConsoleDevice(board.getMemoryMap(), BUS_PORT_NAMES);
         builtin = new VirtIOFileSystemDevice(board.getMemoryMap(), SCRIPTS_TAG, getScripts());
+        window = new ComponentWindow(() -> board.getCpu().getFrequency());
 
         uart.getInterrupt().set(UART_INTERRUPT, board.getInterruptController());
         rtc.getInterrupt().set(RTC_INTERRUPT, board.getInterruptController());
         busPorts.getInterrupt().set(BUS_INTERRUPT, board.getInterruptController());
         builtin.getInterrupt().set(SCRIPTS_INTERRUPT, board.getInterruptController());
+        window.getInterrupt().set(WINDOW_INTERRUPT, board.getInterruptController());
 
         if (!board.addDevice(MEMORY_ADDRESS, memory)) {
             throw new IllegalStateException("Failed mapping memory.");
@@ -117,6 +153,9 @@ public final class RiscvMachine implements AutoCloseable {
                 throw new IllegalStateException("Failed mapping network interface " + i + ".");
             }
         }
+        if (!board.addDevice(WINDOW_ADDRESS, window)) {
+            throw new IllegalStateException("Failed mapping component window.");
+        }
         if (board.addDevice(uart).isEmpty() || board.addDevice(rtc).isEmpty()
             || board.addDevice(busPorts).isEmpty() || board.addDevice(builtin).isEmpty()) {
             throw new IllegalStateException("Failed mapping devices.");
@@ -124,7 +163,24 @@ public final class RiscvMachine implements AutoCloseable {
 
         board.setBootArguments(BOOT_ARGUMENTS);
         board.setStandardOutputDevice(uart);
-        board.setFirmwareSize(Buildroot.getSednaFirmwareRegionSize());
+        final long firmwareRegion = (firmware.length + FIRMWARE_ALIGNMENT - 1) & -FIRMWARE_ALIGNMENT;
+        board.setFirmwareSize(Math.max(firmwareRegion, Buildroot.getSednaFirmwareRegionSize()));
+    }
+
+    /**
+     * The bundled Linux boot loader. It boots the kernel on the first disk.
+     */
+    public static synchronized byte[] linuxBootloader() throws IOException {
+        if (linuxBootloader == null) {
+            try (final InputStream stream = Buildroot.getSednaFirmware()) {
+                linuxBootloader = stream.readAllBytes();
+            }
+        }
+        return linuxBootloader.clone();
+    }
+
+    public static boolean isLinuxBootloader(final byte[] firmware) throws IOException {
+        return Arrays.equals(firmware, linuxBootloader());
     }
 
     /**
@@ -143,23 +199,29 @@ public final class RiscvMachine implements AutoCloseable {
 
     // --------------------------------------------------------------------- //
 
-    public void boot() throws IOException, MemoryAccessException {
+    public void boot() throws MemoryAccessException {
         board.reset();
         loadFirmware();
         board.initialize();
         board.setRunning(true);
     }
 
-    public void step(final int cycles) throws IOException, MemoryAccessException {
+    public void step(final int cycles) {
         board.step(cycles);
-        if (board.isRestarting()) {
-            loadFirmware();
-            board.initialize();
-        }
     }
 
+    /**
+     * Whether the machine runs; false once it powered off or asked to be restarted.
+     */
     public boolean isRunning() {
         return board.isRunning();
+    }
+
+    /**
+     * Whether the guest asked to be restarted. It stays stopped until booted again.
+     */
+    public boolean isRestarting() {
+        return board.isRestarting();
     }
 
     public int getFrequency() {
@@ -207,6 +269,7 @@ public final class RiscvMachine implements AutoCloseable {
         }
         BinarySerialization.serialize(output, busPorts, VirtIOConsoleDevice.class);
         BinarySerialization.serialize(output, builtin, VirtIOFileSystemDevice.class);
+        window.saveState(output);
     }
 
     /**
@@ -245,6 +308,7 @@ public final class RiscvMachine implements AutoCloseable {
         }
         BinarySerialization.deserialize(input, VirtIOConsoleDevice.class, busPorts);
         BinarySerialization.deserialize(input, VirtIOFileSystemDevice.class, builtin);
+        window.loadState(input);
     }
 
     // --------------------------------------------------------------------- //
@@ -295,12 +359,15 @@ public final class RiscvMachine implements AutoCloseable {
         return busPorts.getPort(2);
     }
 
+    public ComponentWindow getWindow() {
+        return window;
+    }
+
     // --------------------------------------------------------------------- //
 
-    private void loadFirmware() throws IOException, MemoryAccessException {
-        final byte[] program = getFirmware();
-        for (int address = 0; address < program.length; address++) {
-            memory.store(address, program[address], Sizes.SIZE_8_LOG2);
+    private void loadFirmware() throws MemoryAccessException {
+        for (int address = 0; address < firmware.length; address++) {
+            memory.store(address, firmware[address], Sizes.SIZE_8_LOG2);
         }
     }
 
@@ -315,14 +382,5 @@ public final class RiscvMachine implements AutoCloseable {
             }
         }
         return scripts;
-    }
-
-    private static synchronized byte[] getFirmware() throws IOException {
-        if (firmware == null) {
-            try (final InputStream stream = Buildroot.getSednaFirmware()) {
-                firmware = stream.readAllBytes();
-            }
-        }
-        return firmware;
     }
 }

@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -18,11 +19,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 final class TestMachine implements AutoCloseable {
     private static final int MEMORY_SIZE = 32 * 1024 * 1024;
+    private static final int BARE_METAL_MEMORY_SIZE = 1024 * 1024;
     private static final long MAX_CYCLES = 2_000_000_000L;
     private static final int CYCLES_PER_STEP = 10_000;
     private static final int KEY_RETURN = 28;
 
-    private static final DeviceBus.Devices NO_DEVICES = new DeviceBus.Devices() {
+    static final DeviceBus.Devices NO_DEVICES = new DeviceBus.Devices() {
         @Override
         public int generation() {
             return 0;
@@ -56,16 +58,31 @@ final class TestMachine implements AutoCloseable {
     Runnable afterStep = () -> {
     };
 
-    private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks, final int networkCount) throws Exception {
+    private TestMachine(final DeviceBus.Devices devices, final int memorySize, final byte[] firmware,
+                        final List<BlockDevice> disks, final int networkCount) throws Exception {
         for (final char[] row : screen) {
             Arrays.fill(row, ' ');
         }
-        machine = new RiscvMachine(MEMORY_SIZE, disks, networkCount);
+        machine = new RiscvMachine(memorySize, firmware, disks, networkCount);
         bus = new DeviceBus(devices, machine.getRpcPort(), machine.getBlobPort(), machine.getEventPort());
+        machine.getWindow().setDevices(devices);
+    }
+
+    private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks, final int networkCount) throws Exception {
+        this(devices, MEMORY_SIZE, RiscvMachine.linuxBootloader(), disks, networkCount);
     }
 
     private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks) throws Exception {
         this(devices, disks, 0);
+    }
+
+    /**
+     * Boots a program on a small machine without disks, like a microcontroller.
+     */
+    static TestMachine bareMetal(final byte[] firmware, final DeviceBus.Devices devices) throws Exception {
+        final TestMachine test = new TestMachine(devices, BARE_METAL_MEMORY_SIZE, firmware, List.of(), 0);
+        test.machine.boot();
+        return test;
     }
 
     static TestMachine bootWithNetwork() throws Exception {
@@ -131,6 +148,18 @@ final class TestMachine implements AutoCloseable {
         }
     }
 
+    /**
+     * Runs until the condition holds or the machine stops.
+     */
+    void awaitCondition(final String description, final BooleanSupplier condition) throws Exception {
+        final long deadline = cycles + MAX_CYCLES;
+        while (!condition.getAsBoolean()) {
+            assertTrue(machine.isRunning(), () -> "Machine stopped waiting for " + description + ".");
+            assertTrue(cycles < deadline, () -> "Timed out waiting for " + description + ".");
+            step();
+        }
+    }
+
     void awaitPowerOff() throws Exception {
         final long deadline = cycles + MAX_CYCLES;
         while (machine.isRunning()) {
@@ -160,6 +189,9 @@ final class TestMachine implements AutoCloseable {
         // Stands in for the server thread picking up synchronized calls.
         if (bus.hasMainThreadCall()) {
             bus.runMainThreadCall();
+        }
+        if (machine.getWindow().hasMainThreadCall()) {
+            machine.getWindow().runMainThreadCall();
         }
 
         final ByteBuffer output = ByteBuffer.allocate(4096);

@@ -517,12 +517,9 @@ object Items extends ItemAPI {
     Recipes.addSubItem(new item.HardDiskDrive(storage, Tier.Two), Constants.ItemName.HDDTier2, "oc:hdd2")
     Recipes.addSubItem(new item.HardDiskDrive(storage, Tier.Three), Constants.ItemName.HDDTier3, "oc:hdd3")
 
-    val luaBios = {
-      val code = new Array[Byte](4 * 1024)
-      val count = OpenComputers.getClass.getResourceAsStream(Settings.scriptPath + "bios.lua").read(code)
-      registerEEPROM("EEPROM (Lua BIOS)", code.take(count), null, readonly = false)
-    }
-    Recipes.addStack(luaBios, Constants.ItemName.LuaBios)
+    // Boots Linux from the first hard drive, or a live system without one.
+    val linuxBootloader = registerEEPROM("EEPROM (Linux)", li.cil.oc.riscv.RiscvMachine.linuxBootloader(), null, readonly = false)
+    Recipes.addStack(linuxBootloader, Constants.ItemName.LuaBios)
 
   }
 
