@@ -1,0 +1,6 @@
+[submodule "deps/sedna"]
+	path = deps/sedna
+	url = https://github.com/fnuecke/sedna.git
+[submodule "deps/ceres"]
+	path = deps/ceres
+	url = https://github.com/fnuecke/ceres.git

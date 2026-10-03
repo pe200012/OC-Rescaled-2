@@ -87,6 +87,11 @@ unimined.minecraft {
                 systemProperty("foundation.dump", "true")
                 systemProperty("foundation.verbose", "true")
             }
+            // In dev runs the mod is loaded from class directories, so the FMLCorePlugin manifest
+            // entry is never read and the transformer stripping missing mod interfaces is not active.
+            if (propertyBool('is_coremod')) {
+                systemProperty("fml.coreMods.load", propertyString('coremod_plugin_class_name'))
+            }
             return
         }
     }
