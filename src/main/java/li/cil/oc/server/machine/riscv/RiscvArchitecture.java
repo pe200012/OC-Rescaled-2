@@ -42,9 +42,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * by that screen's keyboards. Components and signals reach Linux through the device bus, and
  * bare-metal programs through the component window.
  * <p>
- * Hard drives become the machine's disks, the first one booted from. Linux without hard drives
- * boots from a volatile copy of the bundled system and starts over when loaded; all other machines
- * are saved with the world and resume where they were.
+ * Hard drives become the machine's disks, the first one booted from, followed by its floppy drives.
+ * Linux without hard drives boots from a volatile copy of the bundled system and starts over when
+ * loaded; all other machines are saved with the world and resume where they were.
  */
 @Architecture.Name("RISC-V")
 public final class RiscvArchitecture implements Architecture {
@@ -72,6 +72,7 @@ public final class RiscvArchitecture implements Architecture {
     private boolean isPersistent;
     private boolean needsBoot;
     private ComponentDevices devices;
+    private FloppyDrives floppies;
     private DeviceBus bus;
     private NetworkBridge network;
     private List<InternetLink> internetLinks = List.of();
@@ -137,8 +138,9 @@ public final class RiscvArchitecture implements Architecture {
                 links.add(new InternetLink(network.networkCount() + i, describeOrigin()));
             }
             internetLinks = links;
+            floppies = FloppyDrives.find(machine);
             vm = new RiscvMachine(memorySize, firmware, isLiveSystem ? List.of(RiscvMachine.createVolatileRootDisk()) : disks,
-                network.networkCount() + internetLinks.size());
+                floppies.count(), network.networkCount() + internetLinks.size());
             vm.setFrequency(megahertz() * HERTZ_PER_MEGAHERTZ);
             // Faster clocks and more RAM draw more power.
             if (baseCostPerTick < 0) {
@@ -181,6 +183,7 @@ public final class RiscvArchitecture implements Architecture {
         internetLinks = List.of();
         vm = null;
         devices = null;
+        floppies = null;
         bus = null;
         network = null;
         terminal = null;
@@ -197,6 +200,7 @@ public final class RiscvArchitecture implements Architecture {
         bus.runMainThreadCall();
         vm.getWindow().runMainThreadCall();
         network.flush();
+        floppies.update(vm);
         if (needsScreenCheck) {
             needsScreenCheck = false;
             selectScreen();
@@ -216,8 +220,9 @@ public final class RiscvArchitecture implements Architecture {
 
             if (devices.refresh()) {
                 needsScreenCheck = true;
+                floppies.invalidate();
             }
-            if (needsScreenCheck) {
+            if (needsScreenCheck || floppies.needsUpdate()) {
                 return new ExecutionResult.SynchronizedCall();
             }
 

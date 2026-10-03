@@ -15,6 +15,7 @@ import li.cil.sedna.api.memory.MemoryAccessException;
 import li.cil.sedna.api.memory.MemoryMap;
 import li.cil.sedna.buildroot.Buildroot;
 import li.cil.sedna.device.block.ByteBufferBlockDevice;
+import li.cil.sedna.device.block.NullBlockDevice;
 import li.cil.sedna.device.memory.Memory;
 import li.cil.sedna.device.rtc.GoldfishRTC;
 import li.cil.sedna.device.rtc.SystemTimeRealTimeCounter;
@@ -39,8 +40,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * A RISC-V board: RAM, a UART console, a real time clock, disks, network interfaces, the device bus
- * ports, the component window and the guest scripts. Boots the firmware it is given, copied to the
+ * A RISC-V board: RAM, a UART console, a real time clock, disks, floppy drives, network interfaces,
+ * the device bus ports, the component window and the guest scripts. Boots the firmware it is given, copied to the
  * start of RAM: the bundled Linux boot loader, or a bare-metal program. Independent of Minecraft,
  * so it can be booted from tests.
  */
@@ -55,6 +56,10 @@ public final class RiscvMachine implements AutoCloseable {
     private static final long DISK_BASE_ADDRESS = 0x20000000L;
     private static final int DISK_STRIDE = 0x1000;
     private static final int[] DISK_INTERRUPTS = {0x1, 0x6, 0x7, 0x8, 0x9, 0xC};
+    // Floppy drives come after them. Their floppies come and go while the machine runs.
+    private static final long FLOPPY_BASE_ADDRESS = 0x22000000L;
+    private static final int FLOPPY_STRIDE = 0x1000;
+    private static final int[] FLOPPY_INTERRUPTS = {0x13, 0x14, 0x15, 0x16};
     // Network interfaces likewise, so the first one is always eth0.
     private static final long NETWORK_BASE_ADDRESS = 0x21000000L;
     private static final int NETWORK_STRIDE = 0x1000;
@@ -72,7 +77,7 @@ public final class RiscvMachine implements AutoCloseable {
     private static final String SCRIPTS_TAG = "builtin";
     private static final String SCRIPTS_RESOURCE = "/li/cil/oc/riscv/scripts.zip";
 
-    private static final int STATE_VERSION = 3;
+    private static final int STATE_VERSION = 4;
     private static final int MEMORY_COPY_CHUNK = 64 * 1024;
 
     private static byte[] linuxBootloader;
@@ -99,6 +104,7 @@ public final class RiscvMachine implements AutoCloseable {
     private final GoldfishRTC rtc = new GoldfishRTC(SystemTimeRealTimeCounter.get());
     private final List<BlockDevice> disks;
     private final VirtIOBlockDevice[] diskDevices;
+    private final VirtIOBlockDevice[] floppyDevices;
     private final VirtIONetworkDevice[] networkDevices;
     private final VirtIOConsoleDevice busPorts;
     private final VirtIOFileSystemDevice builtin;
@@ -107,14 +113,19 @@ public final class RiscvMachine implements AutoCloseable {
     /**
      * @param firmware     the program to run, such as {@link #linuxBootloader()}.
      * @param disks        the disks in slot order; the first one is booted from. Closed with the machine.
+     * @param floppyCount  how many floppy drives the machine has, all empty to begin with.
      * @param networkCount how many network interfaces the machine has.
      */
-    public RiscvMachine(final int memorySize, final byte[] firmware, final List<BlockDevice> disks, final int networkCount) throws IOException {
+    public RiscvMachine(final int memorySize, final byte[] firmware, final List<BlockDevice> disks,
+                        final int floppyCount, final int networkCount) throws IOException {
         if (firmware.length == 0 || firmware.length > memorySize / 2) {
             throw new IllegalArgumentException("Firmware does not fit into memory.");
         }
         if (disks.size() > DISK_INTERRUPTS.length) {
             throw new IllegalArgumentException("At most " + DISK_INTERRUPTS.length + " disks are supported.");
+        }
+        if (floppyCount > FLOPPY_INTERRUPTS.length) {
+            throw new IllegalArgumentException("At most " + FLOPPY_INTERRUPTS.length + " floppy drives are supported.");
         }
         if (networkCount > NETWORK_INTERRUPTS.length) {
             throw new IllegalArgumentException("At most " + NETWORK_INTERRUPTS.length + " network interfaces are supported.");
@@ -125,6 +136,7 @@ public final class RiscvMachine implements AutoCloseable {
         memory = Memory.create(memorySize);
         this.disks = List.copyOf(disks);
         diskDevices = new VirtIOBlockDevice[disks.size()];
+        floppyDevices = new VirtIOBlockDevice[floppyCount];
         networkDevices = new VirtIONetworkDevice[networkCount];
         busPorts = new VirtIOConsoleDevice(board.getMemoryMap(), BUS_PORT_NAMES);
         builtin = new VirtIOFileSystemDevice(board.getMemoryMap(), SCRIPTS_TAG, getScripts());
@@ -144,6 +156,13 @@ public final class RiscvMachine implements AutoCloseable {
             diskDevices[i].getInterrupt().set(DISK_INTERRUPTS[i], board.getInterruptController());
             if (!board.addDevice(DISK_BASE_ADDRESS + (long) i * DISK_STRIDE, diskDevices[i])) {
                 throw new IllegalStateException("Failed mapping disk " + i + ".");
+            }
+        }
+        for (int i = 0; i < floppyDevices.length; i++) {
+            floppyDevices[i] = new VirtIOBlockDevice(board.getMemoryMap(), NullBlockDevice.get(false));
+            floppyDevices[i].getInterrupt().set(FLOPPY_INTERRUPTS[i], board.getInterruptController());
+            if (!board.addDevice(FLOPPY_BASE_ADDRESS + (long) i * FLOPPY_STRIDE, floppyDevices[i])) {
+                throw new IllegalStateException("Failed mapping floppy drive " + i + ".");
             }
         }
         for (int i = 0; i < networkDevices.length; i++) {
@@ -232,11 +251,26 @@ public final class RiscvMachine implements AutoCloseable {
         board.getCpu().setFrequency(value);
     }
 
+    public int getFloppyCount() {
+        return floppyDevices.length;
+    }
+
+    /**
+     * Puts a floppy into a drive, or empties the drive with null. The floppy that was in it is
+     * closed. The guest sees the drive's size change. Must not be called while the machine steps.
+     */
+    public void setFloppy(final int drive, @Nullable final BlockDevice floppy) throws IOException {
+        floppyDevices[drive].setBlock(floppy != null ? floppy : NullBlockDevice.get(false));
+    }
+
     @Override
     public void close() throws Exception {
         memory.close();
         for (final BlockDevice disk : disks) {
             disk.close();
+        }
+        for (final VirtIOBlockDevice floppy : floppyDevices) {
+            floppy.close();
         }
     }
 
@@ -263,6 +297,10 @@ public final class RiscvMachine implements AutoCloseable {
         for (final VirtIOBlockDevice disk : diskDevices) {
             BinarySerialization.serialize(output, disk, VirtIOBlockDevice.class);
         }
+        output.writeInt(floppyDevices.length);
+        for (final VirtIOBlockDevice floppy : floppyDevices) {
+            BinarySerialization.serialize(output, floppy, VirtIOBlockDevice.class);
+        }
         output.writeInt(networkDevices.length);
         for (final VirtIONetworkDevice network : networkDevices) {
             BinarySerialization.serialize(output, network, VirtIONetworkDevice.class);
@@ -274,7 +312,8 @@ public final class RiscvMachine implements AutoCloseable {
 
     /**
      * Restores a state written by {@link #saveState}, in place of booting. The machine must have been
-     * built with the same memory size and number of disks.
+     * built with the same memory size and number of disks, floppy drives and network interfaces.
+     * Floppies are not part of the state; put them back into their drives afterwards.
      */
     public void loadState(final DataInputStream input) throws IOException, MemoryAccessException {
         if (input.readInt() != STATE_VERSION) {
@@ -299,6 +338,12 @@ public final class RiscvMachine implements AutoCloseable {
         BinarySerialization.deserialize(input, GoldfishRTC.class, rtc);
         for (final VirtIOBlockDevice disk : diskDevices) {
             BinarySerialization.deserialize(input, VirtIOBlockDevice.class, disk);
+        }
+        if (input.readInt() != floppyDevices.length) {
+            throw new IOException("Floppy drives changed.");
+        }
+        for (final VirtIOBlockDevice floppy : floppyDevices) {
+            BinarySerialization.deserialize(input, VirtIOBlockDevice.class, floppy);
         }
         if (input.readInt() != networkDevices.length) {
             throw new IOException("Network interfaces changed.");

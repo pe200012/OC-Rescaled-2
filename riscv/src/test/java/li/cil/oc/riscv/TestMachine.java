@@ -59,17 +59,17 @@ final class TestMachine implements AutoCloseable {
     };
 
     private TestMachine(final DeviceBus.Devices devices, final int memorySize, final byte[] firmware,
-                        final List<BlockDevice> disks, final int networkCount) throws Exception {
+                        final List<BlockDevice> disks, final int floppyCount, final int networkCount) throws Exception {
         for (final char[] row : screen) {
             Arrays.fill(row, ' ');
         }
-        machine = new RiscvMachine(memorySize, firmware, disks, networkCount);
+        machine = new RiscvMachine(memorySize, firmware, disks, floppyCount, networkCount);
         bus = new DeviceBus(devices, machine.getRpcPort(), machine.getBlobPort(), machine.getEventPort());
         machine.getWindow().setDevices(devices);
     }
 
     private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks, final int networkCount) throws Exception {
-        this(devices, MEMORY_SIZE, RiscvMachine.linuxBootloader(), disks, networkCount);
+        this(devices, MEMORY_SIZE, RiscvMachine.linuxBootloader(), disks, 0, networkCount);
     }
 
     private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks) throws Exception {
@@ -80,7 +80,14 @@ final class TestMachine implements AutoCloseable {
      * Boots a program on a small machine without disks, like a microcontroller.
      */
     static TestMachine bareMetal(final byte[] firmware, final DeviceBus.Devices devices) throws Exception {
-        final TestMachine test = new TestMachine(devices, BARE_METAL_MEMORY_SIZE, firmware, List.of(), 0);
+        final TestMachine test = new TestMachine(devices, BARE_METAL_MEMORY_SIZE, firmware, List.of(), 0, 0);
+        test.machine.boot();
+        return test;
+    }
+
+    static TestMachine bootWithFloppyDrives(final int count) throws Exception {
+        final TestMachine test = new TestMachine(NO_DEVICES, MEMORY_SIZE, RiscvMachine.linuxBootloader(),
+            List.of(RiscvMachine.createVolatileRootDisk()), count, 0);
         test.machine.boot();
         return test;
     }

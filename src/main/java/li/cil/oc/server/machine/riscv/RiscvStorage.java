@@ -22,7 +22,7 @@ import java.util.UUID;
 
 /**
  * Where RISC-V machines keep their data in the world save: disk images, named by an id stored on
- * the hard drive item, and machine snapshots, named by the machine's address.
+ * the hard drive or floppy item, and machine snapshots, named by the machine's address.
  */
 final class RiscvStorage {
     private static final String DIRECTORY = "opencomputers-riscv";
@@ -48,7 +48,7 @@ final class RiscvStorage {
                     continue;
                 }
 
-                final Path image = root().resolve("disks").resolve(diskId(stack, host) + ".img");
+                final Path image = disk(diskId(stack, host::markChanged).toString());
                 final boolean isNew = !Files.exists(image);
                 final FileBlockDevice disk = FileBlockDevice.open(image, RiscvSettings.diskSize(driver.tier(stack)));
                 disks.add(disk);
@@ -67,9 +67,18 @@ final class RiscvStorage {
         return disks;
     }
 
-    // --------------------------------------------------------------------- //
+    /**
+     * Opens the disk image of a floppy, given its id from {@link #diskId}.
+     */
+    static FileBlockDevice openFloppy(final String id) throws IOException {
+        return FileBlockDevice.open(disk(id), RiscvSettings.floppySize());
+    }
 
-    private static UUID diskId(final ItemStack stack, final MachineHost host) {
+    /**
+     * The id of the disk image of a hard drive or floppy. Items get one the first time they are
+     * used, which is saved by marking their inventory changed.
+     */
+    static UUID diskId(final ItemStack stack, final Runnable markChanged) {
         if (!stack.hasTagCompound()) {
             stack.setTagCompound(new NBTTagCompound());
         }
@@ -83,8 +92,14 @@ final class RiscvStorage {
         }
         final UUID id = UUID.randomUUID();
         tag.setString(DISK_TAG, id.toString());
-        host.markChanged();
+        markChanged.run();
         return id;
+    }
+
+    // --------------------------------------------------------------------- //
+
+    private static Path disk(final String id) {
+        return root().resolve("disks").resolve(id + ".img");
     }
 
     private static Path root() {

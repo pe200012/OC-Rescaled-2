@@ -1,6 +1,7 @@
 package li.cil.oc.server.machine.riscv;
 
 import li.cil.oc.api.machine.Machine;
+import li.cil.oc.api.machine.MachineHost;
 import li.cil.oc.api.network.Component;
 import li.cil.oc.api.network.Network;
 import li.cil.oc.api.network.Node;
@@ -11,6 +12,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 /**
  * Lookups that need the mod's internals, which are compiled after this package and so are not
@@ -27,6 +29,12 @@ public final class RiscvHooks {
      * The addresses of the keyboards attached to a screen, given the screen's address.
      */
     public static BiFunction<Machine, String, Collection<String>> screenKeyboards = RiscvHooks::neighboringKeyboards;
+
+    /**
+     * The inventory slot of the host's own floppy drive, as computer cases and robots have, or -1
+     * if it has none.
+     */
+    public static ToIntFunction<MachineHost> floppySlot = host -> -1;
 
     private RiscvHooks() {
     }

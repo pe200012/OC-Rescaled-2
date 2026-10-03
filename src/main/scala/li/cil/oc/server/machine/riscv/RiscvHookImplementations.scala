@@ -1,7 +1,12 @@
 package li.cil.oc.server.machine.riscv
 
 import li.cil.oc.api.machine.Machine
+import li.cil.oc.api.machine.MachineHost
+import li.cil.oc.common.InventorySlots
+import li.cil.oc.common.Slot
 import li.cil.oc.common.component.TextBuffer
+import li.cil.oc.common.tileentity.Case
+import li.cil.oc.common.tileentity.Robot
 import li.cil.oc.common.tileentity.Screen
 import li.cil.oc.server.component.Keyboard
 import net.minecraft.tileentity.TileEntity
@@ -10,12 +15,21 @@ import net.minecraft.util.EnumFacing
 import scala.jdk.CollectionConverters.*
 
 /**
- * Implementations of [[RiscvHooks]] that know about multi-block screens.
+ * Implementations of [[RiscvHooks]] that know about multi-block screens and the mod's inventories.
  */
 object RiscvHookImplementations {
   def install(): Unit = {
     RiscvHooks.adjacentScreen = (machine: Machine) => adjacentScreen(machine)
     RiscvHooks.screenKeyboards = (machine: Machine, screen: String) => keyboards(machine, screen)
+    RiscvHooks.floppySlot = (host: MachineHost) => floppySlot(host)
+  }
+
+  // Robots have one if a floppy container was built into them.
+  private def floppySlot(host: MachineHost): Int = host match {
+    case computer: Case if computer.tier >= 0 && computer.tier < InventorySlots.computer.length =>
+      InventorySlots.computer(computer.tier).indexWhere(_.slot == Slot.Floppy)
+    case robot: Robot => robot.containerSlots.find(robot.containerSlotType(_) == Slot.Floppy).getOrElse(-1)
+    case _ => -1
   }
 
   private def adjacentScreen(machine: Machine): String = machine.host match {

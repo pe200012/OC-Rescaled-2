@@ -12,6 +12,7 @@ import java.util.List;
 final class RiscvSettings {
     private static final long KIBIBYTE = 1024;
     private static final long[] DEFAULT_DISK_SIZES = {16384, 32768, 65536};
+    private static final long DEFAULT_FLOPPY_SIZE = 512;
 
     private RiscvSettings() {
     }
@@ -30,6 +31,17 @@ final class RiscvSettings {
             return sizes.get(index) * KIBIBYTE;
         }
         return DEFAULT_DISK_SIZES[Math.min(index, DEFAULT_DISK_SIZES.length - 1)] * KIBIBYTE;
+    }
+
+    /**
+     * The size of a floppy, in bytes.
+     */
+    static long floppySize() {
+        final Config config = API.config;
+        if (config != null && config.hasPath("filesystem.floppySize")) {
+            return Math.max(1, config.getInt("filesystem.floppySize")) * KIBIBYTE;
+        }
+        return DEFAULT_FLOPPY_SIZE * KIBIBYTE;
     }
 
     /**
