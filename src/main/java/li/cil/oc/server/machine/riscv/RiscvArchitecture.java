@@ -9,6 +9,7 @@ import li.cil.oc.api.machine.Architecture;
 import li.cil.oc.api.machine.ExecutionResult;
 import li.cil.oc.api.machine.Machine;
 import li.cil.oc.api.machine.Signal;
+import li.cil.oc.api.network.Component;
 import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.network.Network;
 import li.cil.oc.api.network.Node;
@@ -57,6 +58,10 @@ public final class RiscvArchitecture implements Architecture {
     private static final int CYCLES_PER_SLICE = 10_000;
     private static final int CONSOLE_BUFFER_SIZE = 4096;
     private static final String SNAPSHOT_TAG = "oc:riscvSnapshot";
+    // The slot EEPROMs go in, li.cil.oc.common.Slot.EEPROM, and where their items keep their code,
+    // as written by li.cil.oc.server.component.EEPROM.
+    private static final String EEPROM_SLOT = "eeprom";
+    private static final String EEPROM_CODE_TAG = "oc:eeprom";
 
     private final Machine machine;
     private int memorySize;
@@ -307,13 +312,31 @@ public final class RiscvArchitecture implements Architecture {
     }
 
     /**
-     * The code on the machine's EEPROM, or null if there is none or it is empty.
+     * The code on the machine's EEPROM, or null if there is none or it is empty. Asks the EEPROM
+     * itself, which knows about recent writes; while the machine is being loaded it is not
+     * connected yet, but then its item holds the same code.
      */
     private byte[] readEeprom() throws Exception {
-        for (final String address : NetworkBridge.findComponents(machine, "eeprom")) {
-            final Object[] result = machine.invoke(address, "get", new Object[0]);
-            if (result != null && result.length > 0 && result[0] instanceof byte[] code && code.length > 0) {
-                return code;
+        final Node own = machine.node();
+        final Network network = own != null ? own.network() : null;
+        if (network != null) {
+            for (final String address : NetworkBridge.findComponents(machine, "eeprom")) {
+                // Directly rather than through the machine, which would count it against the call budget.
+                if (network.node(address) instanceof Component eeprom) {
+                    final Object[] result = eeprom.invoke("get", machine);
+                    if (result != null && result.length > 0 && result[0] instanceof byte[] code && code.length > 0) {
+                        return code;
+                    }
+                }
+            }
+        }
+        for (final ItemStack stack : machine.host().internalComponents()) {
+            final DriverItem driver = stack.isEmpty() ? null : Driver.driverFor(stack, machine.host().getClass());
+            if (driver != null && EEPROM_SLOT.equals(driver.slot(stack))) {
+                final byte[] code = driver.dataTag(stack).getByteArray(EEPROM_CODE_TAG);
+                if (code.length > 0) {
+                    return code;
+                }
             }
         }
         return null;
