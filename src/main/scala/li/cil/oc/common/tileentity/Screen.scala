@@ -158,8 +158,10 @@ class Screen(var tier: Int) extends traits.TextBuffer with SidedEnvironment with
     val (inBounds, coordinates) = toScreenCoordinates(hitX, hitY, hitZ)
     coordinates match {
       case Some((x, y)) =>
-        // Send the packet to the server (manually, for accuracy).
+        // Send the packet to the server (manually, for accuracy). A click releases the button
+        // again, as nothing else would.
         origin.buffer.mouseDown(x, y, 0, null)
+        origin.buffer.mouseUp(x, y, 0, null)
         true
       case _ => inBounds
     }

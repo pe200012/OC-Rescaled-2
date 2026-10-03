@@ -65,7 +65,29 @@ public final class FramebufferTest {
     }
 
     @Test
-    public void exampleMovesSquareWithArrowKeys() throws Exception {
+    public void pointerReachesInputEvents() throws Exception {
+        try (final TestMachine test = TestMachine.boot()) {
+            test.login();
+            test.type("echo $(cat /sys/class/input/event1/device/name)-$((1+1))");
+            test.awaitScreen("virtio_tablet-2");
+
+            // The first event of a move is its x: type, code and the value's low half.
+            test.type("echo ready-$((1+1)); set -- $(dd if=/dev/input/event1 bs=24 count=1 2>/dev/null | od -An -tu2 -j16 -N6); echo abs-$1-$2-$3");
+            test.awaitScreen("ready-2");
+            // Moved until it arrives. Linux drops moves to where the pointer already is, so x alternates.
+            final int[] steps = {0};
+            test.awaitCondition("pointer event", () -> {
+                if (steps[0]++ % STEPS_PER_KEY_PRESS == 0) {
+                    test.machine.getTablet().move(10 + steps[0] / STEPS_PER_KEY_PRESS % 2, 20);
+                }
+                final String screen = test.screenText();
+                return screen.contains("abs-3-0-10") || screen.contains("abs-3-0-11");
+            });
+        }
+    }
+
+    @Test
+    public void exampleMovesSquareWithKeysAndClicks() throws Exception {
         try (final TestMachine test = TestMachine.boot()) {
             test.login();
             test.type("micropython /mnt/builtin/example/framebuffer.py");
@@ -77,6 +99,12 @@ public final class FramebufferTest {
             test.machine.sendKey(KEY_RIGHT, false);
             awaitPixel(test, x + 16, y, WHITE);
             assertEquals(0x794086, pixel(test, x, y), "Background behind the square.");
+
+            // A click centres it on the pointer.
+            test.machine.getTablet().move(100, 50);
+            test.machine.getTablet().button(VirtIOTabletDevice.BUTTON_LEFT, true);
+            test.machine.getTablet().button(VirtIOTabletDevice.BUTTON_LEFT, false);
+            awaitPixel(test, 100 - 8, 50 - 8, WHITE);
 
             test.machine.sendKey(KEY_Q, true);
             test.machine.sendKey(KEY_Q, false);

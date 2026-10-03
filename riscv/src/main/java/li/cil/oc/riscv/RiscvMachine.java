@@ -42,7 +42,7 @@ import java.util.Optional;
 
 /**
  * A RISC-V board: RAM, a UART console, a real time clock, disks, floppy drives, network interfaces,
- * a framebuffer and keyboard, the device bus ports, the component window and the guest scripts. Boots the firmware it is given, copied to the
+ * a framebuffer, keyboard and tablet, the device bus ports, the component window and the guest scripts. Boots the firmware it is given, copied to the
  * start of RAM: the bundled Linux boot loader, or a bare-metal program. Independent of Minecraft,
  * so it can be booted from tests.
  */
@@ -70,6 +70,7 @@ public final class RiscvMachine implements AutoCloseable {
     private static final int[] NETWORK_INTERRUPTS = {0xD, 0xE, 0xF, 0x10, 0x11, 0x12};
     private static final long FRAMEBUFFER_ADDRESS = 0x23000000L;
     private static final int KEYBOARD_INTERRUPT = 0x17;
+    private static final int TABLET_INTERRUPT = 0x18;
     // Bare-metal programs find the component window here.
     private static final long WINDOW_ADDRESS = 0x30000000L;
     private static final int BUS_INTERRUPT = 0x3;
@@ -83,7 +84,7 @@ public final class RiscvMachine implements AutoCloseable {
     private static final String SCRIPTS_TAG = "builtin";
     private static final String SCRIPTS_RESOURCE = "/li/cil/oc/riscv/scripts.zip";
 
-    private static final int STATE_VERSION = 6;
+    private static final int STATE_VERSION = 7;
     private static final int MEMORY_COPY_CHUNK = 64 * 1024;
 
     private static byte[] linuxBootloader;
@@ -129,6 +130,7 @@ public final class RiscvMachine implements AutoCloseable {
     private final VirtIONetworkDevice[] networkDevices;
     private final Framebuffer framebuffer = new Framebuffer();
     private final VirtIOKeyboardDevice keyboard;
+    private final VirtIOTabletDevice tablet;
     private final VirtIOConsoleDevice busPorts;
     private final VirtIOFileSystemDevice builtin;
     private final ComponentWindow window;
@@ -162,6 +164,7 @@ public final class RiscvMachine implements AutoCloseable {
         floppyDevices = new VirtIOBlockDevice[floppyCount];
         networkDevices = new VirtIONetworkDevice[networkCount];
         keyboard = new VirtIOKeyboardDevice(board.getMemoryMap());
+        tablet = new VirtIOTabletDevice(board.getMemoryMap(), Framebuffer.WIDTH, Framebuffer.HEIGHT);
         busPorts = new VirtIOConsoleDevice(board.getMemoryMap(), BUS_PORT_NAMES);
         builtin = new VirtIOFileSystemDevice(board.getMemoryMap(), SCRIPTS_TAG, getScripts());
         window = new ComponentWindow(() -> board.getCpu().getFrequency());
@@ -169,6 +172,7 @@ public final class RiscvMachine implements AutoCloseable {
         uart.getInterrupt().set(UART_INTERRUPT, board.getInterruptController());
         rtc.getInterrupt().set(RTC_INTERRUPT, board.getInterruptController());
         keyboard.getInterrupt().set(KEYBOARD_INTERRUPT, board.getInterruptController());
+        tablet.getInterrupt().set(TABLET_INTERRUPT, board.getInterruptController());
         busPorts.getInterrupt().set(BUS_INTERRUPT, board.getInterruptController());
         builtin.getInterrupt().set(SCRIPTS_INTERRUPT, board.getInterruptController());
         window.getInterrupt().set(WINDOW_INTERRUPT, board.getInterruptController());
@@ -203,7 +207,8 @@ public final class RiscvMachine implements AutoCloseable {
         if (!board.addDevice(FRAMEBUFFER_ADDRESS, framebuffer)) {
             throw new IllegalStateException("Failed mapping framebuffer.");
         }
-        if (board.addDevice(uart).isEmpty() || board.addDevice(rtc).isEmpty() || board.addDevice(keyboard).isEmpty()
+        if (board.addDevice(uart).isEmpty() || board.addDevice(rtc).isEmpty()
+            || board.addDevice(keyboard).isEmpty() || board.addDevice(tablet).isEmpty()
             || board.addDevice(busPorts).isEmpty() || board.addDevice(builtin).isEmpty()) {
             throw new IllegalStateException("Failed mapping devices.");
         }
@@ -337,6 +342,7 @@ public final class RiscvMachine implements AutoCloseable {
         BinarySerialization.serialize(output, builtin, VirtIOFileSystemDevice.class);
         window.saveState(output);
         BinarySerialization.serialize(output, keyboard, VirtIOKeyboardDevice.class);
+        BinarySerialization.serialize(output, tablet, VirtIOTabletDevice.class);
         framebuffer.save(output);
     }
 
@@ -385,6 +391,7 @@ public final class RiscvMachine implements AutoCloseable {
         BinarySerialization.deserialize(input, VirtIOFileSystemDevice.class, builtin);
         window.loadState(input);
         BinarySerialization.deserialize(input, VirtIOKeyboardDevice.class, keyboard);
+        BinarySerialization.deserialize(input, VirtIOTabletDevice.class, tablet);
         framebuffer.load(input);
     }
 
@@ -442,6 +449,13 @@ public final class RiscvMachine implements AutoCloseable {
 
     public Framebuffer getFramebuffer() {
         return framebuffer;
+    }
+
+    /**
+     * Points at pixels of the framebuffer.
+     */
+    public VirtIOTabletDevice getTablet() {
+        return tablet;
     }
 
     /**

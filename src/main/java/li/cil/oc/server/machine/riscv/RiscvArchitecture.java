@@ -16,6 +16,7 @@ import li.cil.oc.api.network.Node;
 import li.cil.oc.riscv.Framebuffer;
 import li.cil.oc.riscv.MachineSnapshot;
 import li.cil.oc.riscv.RiscvMachine;
+import li.cil.oc.riscv.VirtIOTabletDevice;
 import li.cil.oc.riscv.bus.DeviceBus;
 import li.cil.oc.riscv.inet.InternetLink;
 import li.cil.oc.riscv.terminal.KeyCodes;
@@ -42,7 +43,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * Runs a RISC-V machine instead of a Lua state. It boots what is on its EEPROM: the Linux boot
  * loader, or a bare-metal program. The console is drawn onto the screen next to the machine and fed
  * by that screen's keyboards, which also type on the machine's own keyboard. When programs draw on
- * the framebuffer, the screen shows that instead, until the console prints after they stopped.
+ * the framebuffer, the screen shows that instead, until the console prints after they stopped;
+ * meanwhile clicks on it reach the machine's tablet.
  * Components and signals reach Linux through the device bus, and bare-metal programs through the
  * component window.
  * <p>
@@ -64,6 +66,7 @@ public final class RiscvArchitecture implements Architecture {
     private static final String PIXELS_TAG = "oc:riscvPixels";
     // How long, in seconds, the framebuffer must stay still for the console to be shown again.
     private static final double CONSOLE_DELAY = 1;
+    private static final Set<String> POINTER_SIGNALS = Set.of("touch", "drag", "drop", "scroll");
     // The slot EEPROMs go in, li.cil.oc.common.Slot.EEPROM, and where their items keep their code,
     // as written by li.cil.oc.server.component.EEPROM.
     private static final String EEPROM_SLOT = "eeprom";
@@ -476,6 +479,11 @@ public final class RiscvArchitecture implements Architecture {
             }
             forwardToBus(signal.name(), args);
             vm.getWindow().sendSignal(signal.name(), args);
+            // Clicks on our screen point at the framebuffer while it shows that.
+            if (showsPixels && POINTER_SIGNALS.contains(signal.name()) && isFromScreen(args)) {
+                point(signal.name(), args);
+                continue;
+            }
             // Machines sharing a component network hear all keyboards; only ours type here.
             if (args.length == 0 || !keyboards.contains(String.valueOf(args[0]))) {
                 continue;
@@ -500,6 +508,36 @@ public final class RiscvArchitecture implements Architecture {
                 }
                 default -> {
                 }
+            }
+        }
+    }
+
+    private boolean isFromScreen(final Object[] args) {
+        final Node node = screen != null ? screen.node() : null;
+        return args.length >= 4 && node != null && node.address().equals(String.valueOf(args[0]));
+    }
+
+    // Screens send positions in characters, here precise ones, and a button or wheel direction.
+    private void point(final String name, final Object[] args) {
+        final VirtIOTabletDevice tablet = vm.getTablet();
+        final double column = toDouble(args[1]);
+        final double row = toDouble(args[2]);
+        // Buttons released off the screen come without a position.
+        if (column >= 0 && row >= 0) {
+            // ponytail: assumes the picture fills the text area, as 320x192 does 80x24 characters.
+            tablet.move(Math.min((int) (column * Framebuffer.WIDTH / Terminal.WIDTH), Framebuffer.WIDTH - 1),
+                Math.min((int) (row * Framebuffer.HEIGHT / Terminal.HEIGHT), Framebuffer.HEIGHT - 1));
+        }
+        final int button = switch (toInt(args[3])) {
+            case 1 -> VirtIOTabletDevice.BUTTON_RIGHT;
+            case 2 -> VirtIOTabletDevice.BUTTON_MIDDLE;
+            default -> VirtIOTabletDevice.BUTTON_LEFT;
+        };
+        switch (name) {
+            case "touch" -> tablet.button(button, true);
+            case "drop" -> tablet.button(button, false);
+            case "scroll" -> tablet.scroll(toInt(args[3]));
+            default -> {
             }
         }
     }
@@ -555,6 +593,10 @@ public final class RiscvArchitecture implements Architecture {
 
     private static int toInt(final Object value) {
         return value instanceof Number ? ((Number) value).intValue() : 0;
+    }
+
+    private static double toDouble(final Object value) {
+        return value instanceof Number ? ((Number) value).doubleValue() : -1;
     }
 
     private static String toText(final Object value) {

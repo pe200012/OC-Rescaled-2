@@ -960,7 +960,8 @@ object TextBuffer {
 
       args += player
       args += name
-      if (owner.precisionMode) {
+      // Pixels need finer positions than whole characters.
+      if (owner.precisionMode || owner.isShowingPixels) {
         args += Double.box(x)
         args += Double.box(y)
       }
