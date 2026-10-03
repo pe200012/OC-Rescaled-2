@@ -45,6 +45,7 @@ object PacketHandler extends CommonPacketHandler {
       case PacketType.Clipboard => onClipboard(p)
       case PacketType.MachineItemStateRequest => onMachineItemStateRequest(p)
       case PacketType.MouseClickOrDrag => onMouseClick(p)
+      case PacketType.MouseMove => onMouseMove(p)
       case PacketType.MouseScroll => onMouseScroll(p)
       case PacketType.MouseUp => onMouseUp(p)
       case PacketType.PetVisibility => onPetVisibility(p)
@@ -219,6 +220,16 @@ object PacketHandler extends CommonPacketHandler {
       case Some(buffer: api.internal.TextBuffer) =>
         val player = p.player.asInstanceOf[EntityPlayer]
         buffer.mouseUp(x, y, button, player)
+      case _ => // Invalid Packet
+    }
+  }
+
+  def onMouseMove(p: PacketParser): Unit = {
+    val address = p.readUTF()
+    val x = p.readFloat()
+    val y = p.readFloat()
+    ComponentTracker.get(p.player.world, address) match {
+      case Some(buffer: TextBuffer) => buffer.mouseMove(x, y, p.player.asInstanceOf[EntityPlayer])
       case _ => // Invalid Packet
     }
   }

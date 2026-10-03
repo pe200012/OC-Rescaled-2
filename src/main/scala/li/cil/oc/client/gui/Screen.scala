@@ -3,6 +3,7 @@ package li.cil.oc.client.gui
 import li.cil.oc.api
 import li.cil.oc.client.renderer.TextBufferRenderCache
 import li.cil.oc.client.renderer.gui.BufferRenderer
+import li.cil.oc.common.component
 import li.cil.oc.util.RenderState
 import net.minecraft.client.renderer.GlStateManager
 import org.lwjgl.input.Mouse
@@ -21,6 +22,10 @@ class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val has
   private var x, y = 0
 
   private var mx, my = -1
+
+  private var hoverX, hoverY = -1
+
+  private var lastHover = 0L
 
   override def handleMouseInput() : Unit = {
     super.handleMouseInput()
@@ -71,12 +76,13 @@ class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val has
 
   private def clickOrDrag(mouseX: Int, mouseY: Int, button: Int) : Unit = {
     toBufferCoordinates(mouseX, mouseY) match {
-      case Some((bx, by)) if bx.toInt != mx || (by*2).toInt != my =>
+      case Some((bx, by)) if cell(bx, by) != (mx, my) =>
         if (mx >= 0 && my >= 0) buffer.mouseDrag(bx, by, button, null)
         else buffer.mouseDown(bx, by, button, null)
         didClick = true
-        mx = bx.toInt
-        my = (by*2).toInt // for high precision mode, sends some unnecessary packets when not using it, but eh
+        val (cx, cy) = cell(bx, by)
+        mx = cx
+        my = cy
       case _ =>
     }
   }
@@ -90,8 +96,33 @@ class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val has
     else None
   }
 
+  // Where a move counts: half characters (for high precision mode, sends some unnecessary packets
+  // when not using it, but eh), or pixels while the screen shows those.
+  private def cell(bx: Double, by: Double): (Int, Int) = buffer match {
+    case target: component.TextBuffer if target.isShowingPixels =>
+      ((bx * target.pixelWidth / buffer.getViewportWidth).toInt, (by * target.pixelHeight / buffer.getViewportHeight).toInt)
+    case _ => (bx.toInt, (by * 2).toInt)
+  }
+
+  // Pixels follow the pointer between clicks too, at most once a tick.
+  private def hover(mouseX: Int, mouseY: Int): Unit = buffer match {
+    case target: component.TextBuffer if hasMouse && !didClick && target.isShowingPixels &&
+      System.currentTimeMillis() - lastHover >= 50 =>
+      toBufferCoordinates(mouseX, mouseY) match {
+        case Some((bx, by)) if cell(bx, by) != (hoverX, hoverY) =>
+          val (cx, cy) = cell(bx, by)
+          hoverX = cx
+          hoverY = cy
+          lastHover = System.currentTimeMillis()
+          target.mouseMove(bx, by, null)
+        case _ =>
+      }
+    case _ =>
+  }
+
   override def drawScreen(mouseX: Int, mouseY: Int, dt: Float): Unit = {
     super.drawScreen(mouseX, mouseY, dt)
+    hover(mouseX, mouseY)
     drawBufferLayer()
   }
 

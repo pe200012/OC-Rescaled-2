@@ -66,7 +66,7 @@ public final class RiscvArchitecture implements Architecture {
     private static final String PIXELS_TAG = "oc:riscvPixels";
     // How long, in seconds, the framebuffer must stay still for the console to be shown again.
     private static final double CONSOLE_DELAY = 1;
-    private static final Set<String> POINTER_SIGNALS = Set.of("touch", "drag", "drop", "scroll");
+    private static final Set<String> POINTER_SIGNALS = Set.of("touch", "drag", "drop", "scroll", "hover");
     // The slot EEPROMs go in, li.cil.oc.common.Slot.EEPROM, and where their items keep their code,
     // as written by li.cil.oc.server.component.EEPROM.
     private static final String EEPROM_SLOT = "eeprom";

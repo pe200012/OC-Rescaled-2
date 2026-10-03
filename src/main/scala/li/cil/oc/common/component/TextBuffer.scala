@@ -446,6 +446,10 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
   override def mouseScroll(x: Double, y: Double, delta: Int, player: EntityPlayer): Unit =
     proxy.mouseScroll(x, y, delta, player)
 
+  // Moving without a button pressed, for screens showing pixels.
+  def mouseMove(x: Double, y: Double, player: EntityPlayer): Unit =
+    proxy.mouseMove(x, y, player)
+
   def copyToAnalyzer(line: Int, player: EntityPlayer): Unit = {
     proxy.copyToAnalyzer(line, player)
   }
@@ -672,6 +676,8 @@ object TextBuffer {
 
     def mouseScroll(x: Double, y: Double, delta: Int, player: EntityPlayer): Unit
 
+    def mouseMove(x: Double, y: Double, player: EntityPlayer): Unit
+
     def copyToAnalyzer(line: Int, player: EntityPlayer): Unit
   }
 
@@ -790,6 +796,10 @@ object TextBuffer {
     override def mouseScroll(x: Double, y: Double, delta: Int, player: EntityPlayer) : Unit = {
       debug(s"{type = mouseScroll, x = $x, y = $y, delta = $delta}")
       ClientPacketSender.sendMouseScroll(nodeAddress, x, y, delta)
+    }
+
+    override def mouseMove(x: Double, y: Double, player: EntityPlayer) : Unit = {
+      ClientPacketSender.sendMouseMove(nodeAddress, x, y)
     }
 
     override def copyToAnalyzer(line: Int, player: EntityPlayer): Unit = {
@@ -932,6 +942,11 @@ object TextBuffer {
 
     override def mouseScroll(x: Double, y: Double, delta: Int, player: EntityPlayer) : Unit = {
       sendMouseEvent(player, "scroll", x, y, delta)
+    }
+
+    // The 0 stands where the other events carry their button.
+    override def mouseMove(x: Double, y: Double, player: EntityPlayer) : Unit = {
+      sendMouseEvent(player, "hover", x, y, 0)
     }
 
     override def copyToAnalyzer(line: Int, player: EntityPlayer): Unit = {

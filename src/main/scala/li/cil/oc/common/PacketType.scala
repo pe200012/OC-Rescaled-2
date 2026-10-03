@@ -87,6 +87,7 @@ object PacketType extends Enumeration {
   MachineItemStateRequest,
   MachineItemStateResponse,
   MouseClickOrDrag,
+  MouseMove,
   MouseScroll,
   MouseUp,
   MultiPartPlace,

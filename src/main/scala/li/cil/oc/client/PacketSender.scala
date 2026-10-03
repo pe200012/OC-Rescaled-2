@@ -136,6 +136,16 @@ object PacketSender {
     pb.sendToServer()
   }
 
+  def sendMouseMove(address: String, x: Double, y: Double): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.MouseMove)
+
+    pb.writeUTF(address)
+    pb.writeFloat(x.toFloat)
+    pb.writeFloat(y.toFloat)
+
+    pb.sendToServer()
+  }
+
   def sendCopyToAnalyzer(address: String, line: Int): Unit = {
     val pb = new SimplePacketBuilder(PacketType.CopyToAnalyzer)
 
