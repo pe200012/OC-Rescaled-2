@@ -58,6 +58,14 @@ final class RiscvSettings {
         return getDouble("power.cost.riscvPerMegabyte", 0.05);
     }
 
+    /**
+     * Whether machines run without drawing power.
+     */
+    static boolean ignorePower() {
+        final Config config = API.config;
+        return config != null && config.hasPath("power.ignorePower") && config.getBoolean("power.ignorePower");
+    }
+
     private static double getDouble(final String path, final double fallback) {
         final Config config = API.config;
         return config != null && config.hasPath(path) ? Math.max(0, config.getDouble(path)) : fallback;
