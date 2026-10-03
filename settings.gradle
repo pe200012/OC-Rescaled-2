@@ -35,6 +35,8 @@ rootProject.name = rootProject.projectDir.getName()
 
 include 'riscv'
 
-// Sedna and its serialization library, built from the submodules so they can be patched in place.
+// Sedna, its serialization library and the Linux image, built from the submodules so they can be
+// patched in place. The image builds in Docker, once, then again only when its config changes.
 includeBuild('deps/ceres')
 includeBuild('deps/sedna')
+includeBuild('deps/buildroot')

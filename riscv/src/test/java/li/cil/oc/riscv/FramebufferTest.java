@@ -45,11 +45,9 @@ public final class FramebufferTest {
     public void keysReachInputEvents() throws Exception {
         try (final TestMachine test = TestMachine.boot()) {
             test.login();
-            // The boot script switched the keyboard of the hidden terminal off, K_OFF.
-            test.type("micropython -c \"import ffi; l = ffi.open(None); b = bytearray(4); "
-                + "l.func('i', 'ioctl', 'iip')(l.func('i', 'open', 'si')('/dev/tty1', 0o402), 0x4B44, b); "
-                + "print('mode-%d' % b[0])\"");
-            test.awaitScreen("mode-4");
+            // The keys also reach the hidden terminal tty1, so nothing may log in there.
+            test.type("echo tty1-$(grep -c tty1 /etc/inittab)");
+            test.awaitScreen("tty1-0");
 
             // Reads one event, as evdev wants whole ones, then skips its time for its type and code.
             test.type("echo ready-$((1+1)); set -- $(dd if=/dev/input/event0 bs=24 count=1 2>/dev/null | od -An -tu2 -j16 -N4); echo key-$1-$2");

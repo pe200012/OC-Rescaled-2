@@ -13,20 +13,13 @@ java {
 
 repositories {
     mavenCentral()
-    maven {
-        url = 'https://fnuecke.github.io/maven'
-        content {
-            includeModule('li.cil.sedna', 'sedna-buildroot')
-        }
-    }
 }
 
 dependencies {
     // Resolved from the included builds in deps/ via dependency substitution.
     api 'li.cil.sedna:sedna:5.0.0'
     api 'li.cil.ceres:ceres:0.0.7'
-
-    implementation 'li.cil.sedna:sedna-buildroot:0.2.9'
+    implementation 'li.cil.sedna:sedna-buildroot:0.0.0'
     implementation 'it.unimi.dsi:fastutil:8.5.6'
     implementation 'com.google.code.gson:gson:2.11.0'
 
