@@ -52,12 +52,26 @@ final class TestMachine implements AutoCloseable {
     private final char[][] screen = new char[Terminal.HEIGHT][Terminal.WIDTH];
     private long cycles;
 
-    private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks) throws Exception {
+    // Runs after every step, e.g. to step a second machine and carry frames between them.
+    Runnable afterStep = () -> {
+    };
+
+    private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks, final int networkCount) throws Exception {
         for (final char[] row : screen) {
             Arrays.fill(row, ' ');
         }
-        machine = new RiscvMachine(MEMORY_SIZE, disks);
+        machine = new RiscvMachine(MEMORY_SIZE, disks, networkCount);
         bus = new DeviceBus(devices, machine.getRpcPort(), machine.getBlobPort(), machine.getEventPort());
+    }
+
+    private TestMachine(final DeviceBus.Devices devices, final List<BlockDevice> disks) throws Exception {
+        this(devices, disks, 0);
+    }
+
+    static TestMachine bootWithNetwork() throws Exception {
+        final TestMachine test = new TestMachine(NO_DEVICES, List.of(RiscvMachine.createVolatileRootDisk()), 1);
+        test.machine.boot();
+        return test;
     }
 
     static TestMachine boot() throws Exception {
@@ -134,6 +148,11 @@ final class TestMachine implements AutoCloseable {
     }
 
     private void step() throws Exception {
+        stepAlone();
+        afterStep.run();
+    }
+
+    void stepAlone() throws Exception {
         machine.step(CYCLES_PER_STEP);
         cycles += CYCLES_PER_STEP;
 

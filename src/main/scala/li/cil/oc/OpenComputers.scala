@@ -11,6 +11,7 @@ import net.minecraftforge.fml.common.event.FMLInterModComms.IMCEvent
 import net.minecraftforge.fml.common.event._
 import net.minecraftforge.fml.common.network.FMLEventChannel
 import li.cil.oc.util.ThreadPoolFactory
+import li.cil.oc.riscv.inet.{InternetConfig, InternetManager}
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 
@@ -59,6 +60,10 @@ object OpenComputers {
     CommandHandler.register(e)
     ThreadPoolFactory.safePools.foreach(_.newThreadPool())
 
+    // Internet access for RISC-V machines, under the same switch as TCP for internet cards.
+    InternetConfig.internetEnabled = Settings.get.tcpEnabled
+    InternetManager.start()
+
     if (Settings.get.internetAccessConfigured()) {
       if (Settings.get.internetFilteringRulesInvalid()) {
         OpenComputers.log.warn("####################################################")
@@ -88,6 +93,7 @@ object OpenComputers {
 
   @EventHandler
   def serverStop(e: FMLServerStoppedEvent): Unit = {
+    InternetManager.stop()
     ThreadPoolFactory.safePools.foreach(_.waitForCompletion())
     StaticSimpleEnvironment.onServerStopped()
   }

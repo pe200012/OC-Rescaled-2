@@ -31,18 +31,21 @@ final class ComponentDevices implements DeviceBus.Devices {
 
     /**
      * Takes a snapshot of the machine's components, bumping the generation if they changed.
+     * Returns whether they did.
      */
-    void refresh() {
+    boolean refresh() {
         final Map<String, String> current;
         try {
             current = new HashMap<>(machine.components());
         } catch (final ConcurrentModificationException e) {
-            return; // The server thread is changing them right now, try again next time.
+            return false; // The server thread is changing them right now, try again next time.
         }
-        if (!current.equals(components)) {
-            components = current;
-            generation++;
+        if (current.equals(components)) {
+            return false;
         }
+        components = current;
+        generation++;
+        return true;
     }
 
     // --------------------------------------------------------------------- //

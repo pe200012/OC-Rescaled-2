@@ -16,10 +16,12 @@ import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.VirtIOBlockDevice;
 import li.cil.sedna.device.virtio.VirtIOConsoleDevice;
 import li.cil.sedna.device.virtio.VirtIOFileSystemDevice;
+import li.cil.sedna.device.virtio.VirtIONetworkDevice;
 import li.cil.sedna.fs.FileSystem;
 import li.cil.sedna.fs.ZipStreamFileSystem;
 import li.cil.sedna.riscv.R5Board;
 
+import javax.annotation.Nullable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -39,6 +41,10 @@ public final class RiscvMachine implements AutoCloseable {
     private static final long DISK_BASE_ADDRESS = 0x20000000L;
     private static final int DISK_STRIDE = 0x1000;
     private static final int[] DISK_INTERRUPTS = {0x1, 0x6, 0x7, 0x8, 0x9, 0xC};
+    // Network interfaces likewise, so the first one is always eth0.
+    private static final long NETWORK_BASE_ADDRESS = 0x21000000L;
+    private static final int NETWORK_STRIDE = 0x1000;
+    private static final int[] NETWORK_INTERRUPTS = {0xD, 0xE, 0xF, 0x10, 0x11, 0x12};
     private static final int BUS_INTERRUPT = 0x3;
     private static final int SCRIPTS_INTERRUPT = 0x5;
     private static final int UART_INTERRUPT = 0xA;
@@ -49,7 +55,7 @@ public final class RiscvMachine implements AutoCloseable {
     private static final String SCRIPTS_TAG = "builtin";
     private static final String SCRIPTS_RESOURCE = "/li/cil/oc/riscv/scripts.zip";
 
-    private static final int STATE_VERSION = 1;
+    private static final int STATE_VERSION = 2;
     private static final int MEMORY_COPY_CHUNK = 64 * 1024;
 
     private static byte[] firmware;
@@ -61,22 +67,32 @@ public final class RiscvMachine implements AutoCloseable {
     private final GoldfishRTC rtc = new GoldfishRTC(SystemTimeRealTimeCounter.get());
     private final List<BlockDevice> disks;
     private final VirtIOBlockDevice[] diskDevices;
+    private final VirtIONetworkDevice[] networkDevices;
     private final VirtIOConsoleDevice busPorts;
     private final VirtIOFileSystemDevice builtin;
 
-    /**
-     * @param disks the disks in slot order; the first one is booted from. Closed with the machine.
-     */
     public RiscvMachine(final int memorySize, final List<BlockDevice> disks) throws IOException {
+        this(memorySize, disks, 0);
+    }
+
+    /**
+     * @param disks        the disks in slot order; the first one is booted from. Closed with the machine.
+     * @param networkCount how many network interfaces the machine has.
+     */
+    public RiscvMachine(final int memorySize, final List<BlockDevice> disks, final int networkCount) throws IOException {
         if (disks.size() > DISK_INTERRUPTS.length) {
             throw new IllegalArgumentException("At most " + DISK_INTERRUPTS.length + " disks are supported.");
+        }
+        if (networkCount > NETWORK_INTERRUPTS.length) {
+            throw new IllegalArgumentException("At most " + NETWORK_INTERRUPTS.length + " network interfaces are supported.");
         }
         Sedna.initialize();
 
         memory = Memory.create(memorySize);
         this.disks = List.copyOf(disks);
         diskDevices = new VirtIOBlockDevice[disks.size()];
-        busPorts = new VirtIOConsoleDevice(board.getMemoryMap(), BUS_PORT_NAMES);
+        networkDevices = new VirtIONetworkDevice[networkCount];
+        busPorts =new VirtIOConsoleDevice(board.getMemoryMap(), BUS_PORT_NAMES);
         builtin = new VirtIOFileSystemDevice(board.getMemoryMap(), SCRIPTS_TAG, getScripts());
 
         uart.getInterrupt().set(UART_INTERRUPT, board.getInterruptController());
@@ -92,6 +108,13 @@ public final class RiscvMachine implements AutoCloseable {
             diskDevices[i].getInterrupt().set(DISK_INTERRUPTS[i], board.getInterruptController());
             if (!board.addDevice(DISK_BASE_ADDRESS + (long) i * DISK_STRIDE, diskDevices[i])) {
                 throw new IllegalStateException("Failed mapping disk " + i + ".");
+            }
+        }
+        for (int i = 0; i < networkDevices.length; i++) {
+            networkDevices[i] = new VirtIONetworkDevice(board.getMemoryMap());
+            networkDevices[i].getInterrupt().set(NETWORK_INTERRUPTS[i], board.getInterruptController());
+            if (!board.addDevice(NETWORK_BASE_ADDRESS + (long) i * NETWORK_STRIDE, networkDevices[i])) {
+                throw new IllegalStateException("Failed mapping network interface " + i + ".");
             }
         }
         if (board.addDevice(uart).isEmpty() || board.addDevice(rtc).isEmpty()
@@ -178,6 +201,10 @@ public final class RiscvMachine implements AutoCloseable {
         for (final VirtIOBlockDevice disk : diskDevices) {
             BinarySerialization.serialize(output, disk, VirtIOBlockDevice.class);
         }
+        output.writeInt(networkDevices.length);
+        for (final VirtIONetworkDevice network : networkDevices) {
+            BinarySerialization.serialize(output, network, VirtIONetworkDevice.class);
+        }
         BinarySerialization.serialize(output, busPorts, VirtIOConsoleDevice.class);
         BinarySerialization.serialize(output, builtin, VirtIOFileSystemDevice.class);
     }
@@ -210,6 +237,12 @@ public final class RiscvMachine implements AutoCloseable {
         for (final VirtIOBlockDevice disk : diskDevices) {
             BinarySerialization.deserialize(input, VirtIOBlockDevice.class, disk);
         }
+        if (input.readInt() != networkDevices.length) {
+            throw new IOException("Network interfaces changed.");
+        }
+        for (final VirtIONetworkDevice network : networkDevices) {
+            BinarySerialization.deserialize(input, VirtIONetworkDevice.class, network);
+        }
         BinarySerialization.deserialize(input, VirtIOConsoleDevice.class, busPorts);
         BinarySerialization.deserialize(input, VirtIOFileSystemDevice.class, builtin);
     }
@@ -229,6 +262,25 @@ public final class RiscvMachine implements AutoCloseable {
 
     public void writeConsole(final byte value) {
         uart.putByte(value);
+    }
+
+    public int getNetworkCount() {
+        return networkDevices.length;
+    }
+
+    /**
+     * The next Ethernet frame the guest sent on the given interface, or null when there is none.
+     */
+    @Nullable
+    public byte[] readFrame(final int network) {
+        return networkDevices[network].readEthernetFrame();
+    }
+
+    /**
+     * Hands an Ethernet frame to the guest on the given interface. Dropped if its queue is full.
+     */
+    public void writeFrame(final int network, final byte[] frame) {
+        networkDevices[network].writeEthernetFrame(frame);
     }
 
     public SerialDevice getRpcPort() {

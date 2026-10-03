@@ -150,6 +150,8 @@ object EventHandler {
 
   @SubscribeEvent
   def onServerTick(e: ServerTickEvent): Any = if (e.phase == TickEvent.Phase.START) {
+    li.cil.oc.riscv.inet.InternetManager.getInstance.ifPresent(_.onServerTick())
+
     pendingServer.synchronized {
       val adds = pendingServer.toArray
       pendingServer.clear()

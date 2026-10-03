@@ -9,11 +9,13 @@ import li.cil.oc.api.machine.Architecture;
 import li.cil.oc.api.machine.ExecutionResult;
 import li.cil.oc.api.machine.Machine;
 import li.cil.oc.api.machine.Signal;
+import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.network.Network;
 import li.cil.oc.api.network.Node;
 import li.cil.oc.riscv.MachineSnapshot;
 import li.cil.oc.riscv.RiscvMachine;
 import li.cil.oc.riscv.bus.DeviceBus;
+import li.cil.oc.riscv.inet.InternetLink;
 import li.cil.oc.riscv.terminal.KeyboardInput;
 import li.cil.oc.riscv.terminal.Terminal;
 import li.cil.oc.riscv.terminal.TerminalRenderer;
@@ -25,11 +27,11 @@ import org.apache.logging.log4j.Logger;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.ConcurrentModificationException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -63,15 +65,19 @@ public final class RiscvArchitecture implements Architecture {
     private boolean needsBoot;
     private ComponentDevices devices;
     private DeviceBus bus;
+    private NetworkBridge network;
+    private List<InternetLink> internetLinks = List.of();
     private int remainingCycles;
     private Terminal terminal;
     private KeyboardInput keyboard;
     private TerminalRenderer renderer;
     private final ByteBuffer console = ByteBuffer.allocate(CONSOLE_BUFFER_SIZE);
 
-    // The screen being drawn to, and one found but waiting for setup on the server thread.
+    // The screen being drawn to and the keyboards attached to it, the only ones typed with. Picked
+    // again on the server thread whenever the machine's components change.
     private TextBuffer screen;
-    private TextBuffer pendingScreen;
+    private Set<String> keyboards = Set.of();
+    private boolean needsScreenCheck;
 
     public RiscvArchitecture(final Machine machine) {
         this.machine = machine;
@@ -106,7 +112,16 @@ public final class RiscvArchitecture implements Architecture {
         try {
             final List<BlockDevice> disks = RiscvStorage.openDisks(machine.host());
             isPersistent = !disks.isEmpty();
-            vm = new RiscvMachine(memorySize, isPersistent ? disks : List.of(RiscvMachine.createVolatileRootDisk()));
+            // Network cards come first, then internet cards, each with an interface of its own.
+            network = new NetworkBridge(machine, NetworkBridge.findCards(machine));
+            final List<String> internetCards = NetworkBridge.findComponents(machine, "internet");
+            final List<InternetLink> links = new ArrayList<>();
+            for (int i = 0; i < internetCards.size(); i++) {
+                links.add(new InternetLink(network.networkCount() + i, describeOrigin()));
+            }
+            internetLinks = links;
+            vm = new RiscvMachine(memorySize, isPersistent ? disks : List.of(RiscvMachine.createVolatileRootDisk()),
+                network.networkCount() + internetLinks.size());
             vm.setFrequency(frequency());
             devices = new ComponentDevices(machine);
             bus = new DeviceBus(devices, vm.getRpcPort(), vm.getBlobPort(), vm.getEventPort());
@@ -115,7 +130,8 @@ public final class RiscvArchitecture implements Architecture {
             renderer = new TerminalRenderer();
             remainingCycles = 0;
             screen = null;
-            pendingScreen = null;
+            keyboards = Set.of();
+            needsScreenCheck = true;
             needsBoot = true;
             return true;
         } catch (final Exception e) {
@@ -134,14 +150,19 @@ public final class RiscvArchitecture implements Architecture {
                 LOGGER.warn("Failed closing RISC-V machine.", e);
             }
         }
+        for (final InternetLink link : internetLinks) {
+            link.disconnect();
+        }
+        internetLinks = List.of();
         vm = null;
         devices = null;
         bus = null;
+        network = null;
         terminal = null;
         keyboard = null;
         renderer = null;
         screen = null;
-        pendingScreen = null;
+        keyboards = Set.of();
     }
 
     // --------------------------------------------------------------------- //
@@ -149,20 +170,11 @@ public final class RiscvArchitecture implements Architecture {
     @Override
     public void runSynchronized() {
         bus.runMainThreadCall();
-
-        // Changing the resolution is not safe from the executor thread.
-        final TextBuffer candidate = pendingScreen;
-        pendingScreen = null;
-        if (candidate == null) {
-            return;
+        network.flush();
+        if (needsScreenCheck) {
+            needsScreenCheck = false;
+            selectScreen();
         }
-        if (candidate.getMaximumWidth() < Terminal.WIDTH || candidate.getMaximumHeight() < Terminal.HEIGHT) {
-            machine.crash("RISC-V needs a screen of at least " + Terminal.WIDTH + "x" + Terminal.HEIGHT + ".");
-            return;
-        }
-        candidate.setResolution(Terminal.WIDTH, Terminal.HEIGHT);
-        renderer.invalidate();
-        screen = candidate;
     }
 
     @Override
@@ -173,15 +185,13 @@ public final class RiscvArchitecture implements Architecture {
                 needsBoot = false;
             }
 
-            final TextBuffer found = findScreen();
-            if (found == null) {
-                screen = null;
-            } else if (found != screen) {
-                pendingScreen = found;
+            if (devices.refresh()) {
+                needsScreenCheck = true;
+            }
+            if (needsScreenCheck) {
                 return new ExecutionResult.SynchronizedCall();
             }
 
-            devices.refresh();
             handleSignals();
 
             // A synchronized call ends a slice early; what is left of the tick's budget carries over.
@@ -192,6 +202,10 @@ public final class RiscvArchitecture implements Architecture {
                 vm.step(CYCLES_PER_SLICE);
                 remainingCycles -= CYCLES_PER_SLICE;
                 bus.step();
+                network.collect(vm);
+                for (final InternetLink link : internetLinks) {
+                    link.exchange(vm);
+                }
                 pumpConsole();
                 if (bus.hasMainThreadCall()) {
                     render();
@@ -200,6 +214,10 @@ public final class RiscvArchitecture implements Architecture {
             }
 
             render();
+            // Frames sent this tick go out together, as cards only send from the server thread.
+            if (network.needsServerThread()) {
+                return new ExecutionResult.SynchronizedCall();
+            }
             return vm.isRunning() ? new ExecutionResult.Sleep(1) : new ExecutionResult.Shutdown(false);
         } catch (final Throwable e) {
             LOGGER.warn("RISC-V machine failed.", e);
@@ -257,6 +275,12 @@ public final class RiscvArchitecture implements Architecture {
 
     // --------------------------------------------------------------------- //
 
+    private String describeOrigin() {
+        final EnvironmentHost host = machine.host();
+        return String.format(Locale.ROOT, "RISC-V computer at (%d, %d, %d)",
+            (int) Math.floor(host.xPosition()), (int) Math.floor(host.yPosition()), (int) Math.floor(host.zPosition()));
+    }
+
     private int frequency() {
         for (final ItemStack stack : machine.host().internalComponents()) {
             final DriverItem driver = stack.isEmpty() ? null : Driver.driverFor(stack);
@@ -299,7 +323,14 @@ public final class RiscvArchitecture implements Architecture {
         Signal signal;
         while ((signal = machine.popSignal()) != null) {
             final Object[] args = signal.args();
+            if ("modem_message".equals(signal.name()) && network.accept(vm, args)) {
+                continue;
+            }
             forwardToBus(signal.name(), args);
+            // Machines sharing a component network hear all keyboards; only ours type here.
+            if (args.length == 0 || !keyboards.contains(String.valueOf(args[0]))) {
+                continue;
+            }
             switch (signal.name()) {
                 case "key_down" -> {
                     if (args.length >= 3) {
@@ -329,29 +360,38 @@ public final class RiscvArchitecture implements Architecture {
         bus.sendEvent(device, name, data);
     }
 
-    private TextBuffer findScreen() {
-        final Node node = machine.node();
-        final Network network = node != null ? node.network() : null;
-        if (network == null) {
-            return null;
+    /**
+     * Picks the screen to draw on: one touching the machine if there is one, as several machines
+     * on one component network see each other's screens; otherwise the first by address. Runs on
+     * the server thread, as it walks the network and may change the screen's resolution.
+     */
+    private void selectScreen() {
+        final Node own = machine.node();
+        final Network network = own != null ? own.network() : null;
+        final List<String> screens = NetworkBridge.findComponents(machine, "screen");
+        String address = RiscvHooks.adjacentScreen.apply(machine);
+        if (address == null || !screens.contains(address)) {
+            address = screens.isEmpty() ? null : screens.get(0);
         }
-        // The machine updates this map from the server thread without a lock we can take here.
-        final Map<String, String> components;
-        try {
-            components = new HashMap<>(machine.components());
-        } catch (final ConcurrentModificationException e) {
-            return screen;
+
+        final Node node = network != null && address != null ? network.node(address) : null;
+        final TextBuffer candidate = node != null && node.host() instanceof TextBuffer ? (TextBuffer) node.host() : null;
+        keyboards = candidate != null ? Set.copyOf(RiscvHooks.screenKeyboards.apply(machine, address)) : Set.of();
+        if (candidate == screen) {
+            return;
         }
-        for (final Map.Entry<String, String> component : components.entrySet()) {
-            if (!"screen".equals(component.getValue())) {
-                continue;
-            }
-            final Node screenNode = network.node(component.getKey());
-            if (screenNode != null && screenNode.host() instanceof TextBuffer) {
-                return (TextBuffer) screenNode.host();
-            }
+
+        screen = null;
+        if (candidate == null) {
+            return;
         }
-        return null;
+        if (candidate.getMaximumWidth() < Terminal.WIDTH || candidate.getMaximumHeight() < Terminal.HEIGHT) {
+            machine.crash("RISC-V needs a screen of at least " + Terminal.WIDTH + "x" + Terminal.HEIGHT + ".");
+            return;
+        }
+        candidate.setResolution(Terminal.WIDTH, Terminal.HEIGHT);
+        renderer.invalidate();
+        screen = candidate;
     }
 
     private static int toInt(final Object value) {

@@ -14,7 +14,7 @@ import li.cil.oc.integration.Mods
 import li.cil.oc.server.*
 import li.cil.oc.server.machine.luac.{LuaStateFactory, NativeLua52Architecture, NativeLua53Architecture, NativeLua54Architecture, NativeLua55Architecture, NativeLuaPlutoArchitecture}
 import li.cil.oc.server.machine.luaj.LuaJLuaArchitecture
-import li.cil.oc.server.machine.riscv.RiscvArchitecture
+import li.cil.oc.server.machine.riscv.{RiscvArchitecture, RiscvHookImplementations}
 import net.minecraft.block.Block
 import net.minecraft.item.Item
 import net.minecraft.item.ItemStack
@@ -97,6 +97,7 @@ class Proxy {
       api.Machine.add(classOf[LuaJLuaArchitecture])
     }
     api.Machine.add(classOf[RiscvArchitecture])
+    RiscvHookImplementations.install()
 
     api.Machine.LuaArchitecture =
       if (Settings.get.forceLuaJ) classOf[LuaJLuaArchitecture]
