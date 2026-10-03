@@ -20,6 +20,7 @@ import li.cil.oc.common.tileentity.traits._
 import li.cil.oc.common.{PacketHandler => CommonPacketHandler}
 import li.cil.oc.integration.Mods
 import li.cil.oc.integration.jei.ModJEI
+import li.cil.oc.server.machine.riscv.PixelScreen
 import li.cil.oc.util.Audio
 import li.cil.oc.util.ExtendedWorld._
 import net.minecraft.client.Minecraft
@@ -629,6 +630,7 @@ object PacketHandler extends CommonPacketHandler {
           val viewportHeight = nbt.getInteger("viewportHeight")
           buffer.setViewport(viewportWidth, viewportHeight)
         }
+        buffer.loadPixels(nbt)
         buffer.proxy.markDirty()
         buffer.markInitialized()
       case _ => // Invalid packet.
@@ -656,6 +658,8 @@ object PacketHandler extends CommonPacketHandler {
               case PacketType.TextBufferMultiRawSetText => onTextBufferMultiRawSetText(p, buffer)
               case PacketType.TextBufferMultiRawSetBackground => onTextBufferMultiRawSetBackground(p, buffer)
               case PacketType.TextBufferMultiRawSetForeground => onTextBufferMultiRawSetForeground(p, buffer)
+              case PacketType.TextBufferMultiPixelMode => onTextBufferMultiPixelMode(p, buffer)
+              case PacketType.TextBufferMultiPixelRows => onTextBufferMultiPixelRows(p, buffer)
               case _ => // Invalid packet.
             }
         }
@@ -814,6 +818,30 @@ object PacketHandler extends CommonPacketHandler {
     }
 
     buffer.rawSetForeground(col, row, color)
+  }
+
+  def onTextBufferMultiPixelMode(p: PacketParser, buffer: api.internal.TextBuffer): Unit = {
+    val w = p.readInt()
+    val h = p.readInt()
+
+    buffer match {
+      case screen: PixelScreen => screen.setPixelMode(w, h)
+      case _ => // Invalid packet.
+    }
+  }
+
+  def onTextBufferMultiPixelRows(p: PacketParser, buffer: api.internal.TextBuffer): Unit = {
+    val firstRow = p.readInt()
+    val count = p.readInt()
+    val bytes = new Array[Byte](count * 3)
+    p.readFully(bytes)
+    val colors = Array.tabulate(count)(i =>
+      ((bytes(i * 3) & 0xFF) << 16) | ((bytes(i * 3 + 1) & 0xFF) << 8) | (bytes(i * 3 + 2) & 0xFF))
+
+    buffer match {
+      case screen: PixelScreen => screen.setPixelRows(firstRow, colors)
+      case _ => // Invalid packet.
+    }
   }
 
   def onScreenTouchMode(p: PacketParser): Unit =

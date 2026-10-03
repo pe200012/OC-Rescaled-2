@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# The machine's keyboard also types into the virtual terminal tty1, where the root file system
+# keeps a login prompt for a framebuffer console. Nobody sees it, as the console is on the serial
+# port, so switch its keyboard off: keys meant for programs drawing on the framebuffer would go
+# to that login too, and Alt with arrow or function keys would switch terminals.
+
+start() {
+    micropython -c "
+import ffi
+libc = ffi.open(None)
+# O_RDWR | O_NOCTTY
+fd = libc.func('i', 'open', 'si')('/dev/tty1', 0o402)
+if fd >= 0:
+    # KDSKBMODE, K_OFF
+    libc.func('i', 'ioctl', 'iii')(fd, 0x4B45, 4)
+" 2>/dev/null
+    return 0
+}
+
+stop() {
+    return 0
+}
+
+case "$1" in
+start | stop)
+    "$1"
+    ;;
+restart | reload)
+    start
+    ;;
+*)
+    echo "Usage: $0 {start|stop|reload|restart}"
+    exit 1
+    ;;
+esac
+
+exit $?

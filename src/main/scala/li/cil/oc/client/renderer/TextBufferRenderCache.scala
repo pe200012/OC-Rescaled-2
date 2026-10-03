@@ -8,9 +8,11 @@ import com.google.common.cache.RemovalListener
 import com.google.common.cache.RemovalNotification
 import li.cil.oc.Settings
 import li.cil.oc.client.renderer.font.TextBufferRenderData
+import li.cil.oc.common.component
 import li.cil.oc.util.RenderState
 import net.minecraft.client.renderer.GLAllocation
 import net.minecraft.client.renderer.GlStateManager
+import net.minecraft.client.renderer.texture.DynamicTexture
 import net.minecraft.tileentity.TileEntity
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent
@@ -30,6 +32,15 @@ object TextBufferRenderCache extends Callable[Int] with RemovalListener[TileEnti
   // To allow access in cache entry init.
   private var currentBuffer: TextBufferRenderData = scala.compiletime.uninitialized
 
+  // The pixels of screens showing a RISC-V machine's framebuffer instead of text. Made again from
+  // the screen's copy when it was not drawn for a while.
+  private val pixelTextures = CacheBuilder.newBuilder().
+    expireAfterAccess(2, TimeUnit.SECONDS).
+    removalListener(new RemovalListener[component.TextBuffer, DynamicTexture] {
+      override def onRemoval(e: RemovalNotification[component.TextBuffer, DynamicTexture]): Unit = e.getValue.deleteGlTexture()
+    }).
+    build[component.TextBuffer, DynamicTexture]()
+
   // ----------------------------------------------------------------------- //
   // Rendering
   // ----------------------------------------------------------------------- //
@@ -37,6 +48,63 @@ object TextBufferRenderCache extends Callable[Int] with RemovalListener[TileEnti
   def render(buffer: TextBufferRenderData):Unit = {
     currentBuffer = buffer
     compileOrDraw(cache.get(currentBuffer, this))
+  }
+
+  /**
+   * Draws the pixels a screen shows instead of its text, scaled to fit where the text would be.
+   * Returns whether they changed since they were last drawn.
+   */
+  def renderPixels(buffer: component.TextBuffer): Boolean = {
+    val width = buffer.pixelWidth
+    val height = buffer.pixelHeight
+    var texture = pixelTextures.getIfPresent(buffer)
+    if (texture != null && texture.getTextureData.length != width * height) {
+      pixelTextures.invalidate(buffer)
+      texture = null
+    }
+    val changed = buffer.pixelsChanged
+    if (texture == null || changed) {
+      if (texture == null) {
+        texture = new DynamicTexture(width, height)
+        pixelTextures.put(buffer, texture)
+      }
+      val data = texture.getTextureData
+      for (i <- data.indices) {
+        data(i) = 0xFF000000 | buffer.pixels(i)
+      }
+      texture.updateDynamicTexture()
+      buffer.pixelsChanged = false
+    }
+
+    val areaWidth = buffer.renderWidth.toDouble
+    val areaHeight = buffer.renderHeight.toDouble
+    val scale = math.min(areaWidth / width, areaHeight / height)
+    val x0 = (areaWidth - width * scale) / 2
+    val y0 = (areaHeight - height * scale) / 2
+    val x1 = x0 + width * scale
+    val y1 = y0 + height * scale
+
+    GlStateManager.depthMask(false)
+    GlStateManager.enableTexture2D()
+    GL11.glEnable(GL11.GL_TEXTURE_2D)
+    RenderState.bindTexture(texture.getGlTextureId)
+    GlStateManager.color(1, 1, 1, 1)
+    GL11.glBegin(GL11.GL_QUADS)
+    GL11.glTexCoord2d(0, 1)
+    GL11.glVertex3d(x0, y1, 0)
+    GL11.glTexCoord2d(1, 1)
+    GL11.glVertex3d(x1, y1, 0)
+    GL11.glTexCoord2d(1, 0)
+    GL11.glVertex3d(x1, y0, 0)
+    GL11.glTexCoord2d(0, 0)
+    GL11.glVertex3d(x0, y0, 0)
+    GL11.glEnd()
+    RenderState.bindTexture(0)
+    GlStateManager.depthMask(true)
+
+    RenderState.checkError(getClass.getName + ".renderPixels: leaving")
+
+    changed
   }
 
   private def compileOrDraw(list: Int) = {
@@ -115,5 +183,8 @@ object TextBufferRenderCache extends Callable[Int] with RemovalListener[TileEnti
   // ----------------------------------------------------------------------- //
 
   @SubscribeEvent
-  def onTick(e: ClientTickEvent): Unit = cache.cleanUp()
+  def onTick(e: ClientTickEvent): Unit = {
+    cache.cleanUp()
+    pixelTextures.cleanUp()
+  }
 }

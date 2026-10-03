@@ -24,6 +24,7 @@ import li.cil.oc.common.item.data.NodeData
 import li.cil.oc.common.component.traits.TextBufferProxy
 import li.cil.oc.common.component.traits.VideoRamRasterizer
 import li.cil.oc.server.component.Keyboard
+import li.cil.oc.server.machine.riscv.PixelScreen
 import li.cil.oc.server.{ComponentTracker => ServerComponentTracker}
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util
@@ -43,7 +44,7 @@ import net.minecraftforge.fml.relauncher.SideOnly
 import scala.jdk.CollectionConverters.*
 import scala.collection.mutable
 
-class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment with traits.TextBufferProxy with VideoRamRasterizer with DeviceInfo {
+class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment with traits.TextBufferProxy with VideoRamRasterizer with DeviceInfo with PixelScreen {
   override val node = api.Network.newNode(this, Visibility.Network).
     withComponent("screen").
     withConnector().
@@ -67,6 +68,17 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
   private var hasPower = true
 
   private var relativeLitArea = -1.0
+
+  // A RISC-V machine's framebuffer, shown instead of the text while it has a size. Not saved,
+  // the machine sends it again when it resumes.
+  private[oc] var pixelWidth = 0
+
+  private[oc] var pixelHeight = 0
+
+  private[oc] var pixels = Array.emptyIntArray
+
+  // For client side only: whether the pixels changed since they were last drawn.
+  private[oc] var pixelsChanged = false
 
   private var _pendingCommands: Option[PacketBuilder] = None
 
@@ -125,6 +137,9 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
   override def update():Unit = {
     super.update()
     if (isDisplaying && host.world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
+      if (relativeLitArea < 0 && isShowingPixels) {
+        relativeLitArea = 1
+      }
       if (relativeLitArea < 0) {
         // The relative lit area is the number of pixels that are not blank
         // versus the number of pixels in the *current* resolution. This is
@@ -243,6 +258,39 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
   }
 
   override def getPowerState: Boolean = isDisplaying
+
+  override def setPixelMode(width: Int, height: Int): Unit = this.synchronized {
+    pixelWidth = width max 0
+    pixelHeight = height max 0
+    pixels = new Array[Int](pixelWidth * pixelHeight)
+    proxy.onPixelModeChange(pixelWidth, pixelHeight)
+  }
+
+  override def setPixelRows(firstRow: Int, colors: Array[Int]): Unit = this.synchronized {
+    if (pixelWidth > 0 && firstRow >= 0) {
+      val rows = (colors.length / pixelWidth) min (pixelHeight - firstRow)
+      if (rows > 0) {
+        System.arraycopy(colors, 0, pixels, firstRow * pixelWidth, rows * pixelWidth)
+        proxy.onPixelRowsChange(firstRow, rows)
+      }
+    }
+  }
+
+  def isShowingPixels: Boolean = pixelWidth > 0
+
+  // For the packet that brings a client's copy up to date.
+  def savePixels(nbt: NBTTagCompound): Unit = this.synchronized {
+    if (isShowingPixels) {
+      nbt.setInteger(PixelWidthTag, pixelWidth)
+      nbt.setInteger(PixelHeightTag, pixelHeight)
+      nbt.setIntArray(PixelsTag, pixels.clone())
+    }
+  }
+
+  def loadPixels(nbt: NBTTagCompound): Unit = {
+    setPixelMode(nbt.getInteger(PixelWidthTag), nbt.getInteger(PixelHeightTag))
+    setPixelRows(0, nbt.getIntArray(PixelsTag))
+  }
 
   override def setMaximumResolution(width: Int, height: Int):Unit = {
     if (width < 1) throw new IllegalArgumentException("width must be larger or equal to one")
@@ -363,7 +411,7 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
   }
 
   @SideOnly(Side.CLIENT)
-  override def renderText: Boolean = relativeLitArea != 0 && proxy.render()
+  override def renderText: Boolean = (isShowingPixels || relativeLitArea != 0) && proxy.render()
 
   @SideOnly(Side.CLIENT)
   override def renderWidth: Int = TextBufferRenderCache.renderer.charRenderWidth * getViewportWidth
@@ -428,6 +476,9 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
   private final val PreciseTag = Settings.namespace + "precise"
   private final val ViewportWidthTag = Settings.namespace + "viewportWidth"
   private final val ViewportHeightTag = Settings.namespace + "viewportHeight"
+  private final val PixelWidthTag = "pixelWidth"
+  private final val PixelHeightTag = "pixelHeight"
+  private final val PixelsTag = "pixels"
 
   override def load(nbt: NBTTagCompound):Unit = {
     super.load(nbt)
@@ -601,6 +652,12 @@ object TextBuffer {
       owner.relativeLitArea = -1
     }
 
+    def onPixelModeChange(w: Int, h: Int): Unit = {
+      owner.relativeLitArea = -1
+    }
+
+    def onPixelRowsChange(firstRow: Int, rows: Int): Unit
+
     def keyDown(character: Char, code: Int, player: EntityPlayer): Unit
 
     def keyUp(character: Char, code: Int, player: EntityPlayer): Unit
@@ -630,9 +687,24 @@ object TextBuffer {
     }
 
     override def render() = {
-      val wasDirty = dirty
-      TextBufferRenderCache.render(renderer)
-      wasDirty
+      if (owner.isShowingPixels) {
+        TextBufferRenderCache.renderPixels(owner)
+      }
+      else {
+        val wasDirty = dirty
+        TextBufferRenderCache.render(renderer)
+        wasDirty
+      }
+    }
+
+    override def onPixelModeChange(w: Int, h: Int): Unit = {
+      super.onPixelModeChange(w, h)
+      owner.pixelsChanged = true
+      markDirty()
+    }
+
+    override def onPixelRowsChange(firstRow: Int, rows: Int): Unit = {
+      owner.pixelsChanged = true
     }
 
     override def onBufferColorChange() : Unit = {
@@ -823,6 +895,15 @@ object TextBuffer {
       super.onBufferRawSetForeground(col, row, color)
       owner.host.markChanged()
       owner.synchronized(ServerPacketSender.appendTextBufferRawSetForeground(owner.pendingCommands, col, row, color))
+    }
+
+    override def onPixelModeChange(w: Int, h: Int): Unit = {
+      super.onPixelModeChange(w, h)
+      owner.synchronized(ServerPacketSender.appendTextBufferPixelMode(owner.pendingCommands, w, h))
+    }
+
+    override def onPixelRowsChange(firstRow: Int, rows: Int): Unit = {
+      owner.synchronized(ServerPacketSender.appendTextBufferPixelRows(owner.pendingCommands, firstRow, owner.pixels, firstRow * owner.pixelWidth, rows * owner.pixelWidth))
     }
 
     override def keyDown(character: Char, code: Int, player: EntityPlayer) : Unit = {

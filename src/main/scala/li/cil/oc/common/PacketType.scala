@@ -65,6 +65,8 @@ object PacketType extends Enumeration {
   TextBufferMultiRawSetText,
   TextBufferMultiRawSetBackground,
   TextBufferMultiRawSetForeground,
+  TextBufferMultiPixelMode,
+  TextBufferMultiPixelRows,
   TextBufferPowerChange,
   ScreenTouchMode,
   SoundEffect,

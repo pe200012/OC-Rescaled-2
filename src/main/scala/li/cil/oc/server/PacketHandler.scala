@@ -325,6 +325,7 @@ object PacketHandler extends CommonPacketHandler {
               nbt.setInteger("maxHeight", buffer.getMaximumHeight)
               nbt.setInteger("viewportWidth", buffer.getViewportWidth)
               nbt.setInteger("viewportHeight", buffer.getViewportHeight)
+              buffer.savePixels(nbt)
               PacketSender.sendTextBufferInit(address, nbt, entity)
             }
           case _ => // Invalid packet.

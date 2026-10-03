@@ -13,10 +13,12 @@ import li.cil.oc.api.network.Component;
 import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.network.Network;
 import li.cil.oc.api.network.Node;
+import li.cil.oc.riscv.Framebuffer;
 import li.cil.oc.riscv.MachineSnapshot;
 import li.cil.oc.riscv.RiscvMachine;
 import li.cil.oc.riscv.bus.DeviceBus;
 import li.cil.oc.riscv.inet.InternetLink;
+import li.cil.oc.riscv.terminal.KeyCodes;
 import li.cil.oc.riscv.terminal.KeyboardInput;
 import li.cil.oc.riscv.terminal.Terminal;
 import li.cil.oc.riscv.terminal.TerminalRenderer;
@@ -39,8 +41,10 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Runs a RISC-V machine instead of a Lua state. It boots what is on its EEPROM: the Linux boot
  * loader, or a bare-metal program. The console is drawn onto the screen next to the machine and fed
- * by that screen's keyboards. Components and signals reach Linux through the device bus, and
- * bare-metal programs through the component window.
+ * by that screen's keyboards, which also type on the machine's own keyboard. When programs draw on
+ * the framebuffer, the screen shows that instead, until the console prints after they stopped.
+ * Components and signals reach Linux through the device bus, and bare-metal programs through the
+ * component window.
  * <p>
  * Hard drives become the machine's disks, the first one booted from, followed by its floppy drives.
  * Linux without hard drives boots from a volatile copy of the bundled system and starts over when
@@ -57,6 +61,9 @@ public final class RiscvArchitecture implements Architecture {
     private static final int CYCLES_PER_SLICE = 10_000;
     private static final int CONSOLE_BUFFER_SIZE = 4096;
     private static final String SNAPSHOT_TAG = "oc:riscvSnapshot";
+    private static final String PIXELS_TAG = "oc:riscvPixels";
+    // How long, in seconds, the framebuffer must stay still for the console to be shown again.
+    private static final double CONSOLE_DELAY = 1;
     // The slot EEPROMs go in, li.cil.oc.common.Slot.EEPROM, and where their items keep their code,
     // as written by li.cil.oc.server.component.EEPROM.
     private static final String EEPROM_SLOT = "eeprom";
@@ -87,6 +94,12 @@ public final class RiscvArchitecture implements Architecture {
     private TextBuffer screen;
     private Set<String> keyboards = Set.of();
     private boolean needsScreenCheck;
+    // Whether the screen should show the framebuffer instead of the console and whether it was told
+    // so; whether the console printed since the last render, and when the guest last drew, uptime.
+    private boolean showsPixels;
+    private boolean isScreenModeSet;
+    private boolean hasConsoleOutput;
+    private double lastDrawn;
 
     public RiscvArchitecture(final Machine machine) {
         this.machine = machine;
@@ -159,6 +172,9 @@ public final class RiscvArchitecture implements Architecture {
             screen = null;
             keyboards = Set.of();
             needsScreenCheck = true;
+            showsPixels = false;
+            isScreenModeSet = false;
+            hasConsoleOutput = false;
             needsBoot = true;
             return true;
         } catch (final Exception e) {
@@ -189,6 +205,10 @@ public final class RiscvArchitecture implements Architecture {
         terminal = null;
         keyboard = null;
         renderer = null;
+        // Stopped machines leave their console on the screen.
+        if (screen instanceof PixelScreen target && showsPixels) {
+            target.setPixelMode(0, 0);
+        }
         screen = null;
         keyboards = Set.of();
     }
@@ -289,6 +309,8 @@ public final class RiscvArchitecture implements Architecture {
         try {
             if (MachineSnapshot.read(RiscvStorage.snapshot(machine.node().address()), nbt.getLong(SNAPSHOT_TAG), vm, bus, terminal)) {
                 vm.setFrequency(megahertz() * HERTZ_PER_MEGAHERTZ);
+                showsPixels = nbt.getBoolean(PIXELS_TAG);
+                lastDrawn = machine.upTime();
                 needsBoot = false;
             }
         } catch (final Exception e) {
@@ -311,6 +333,7 @@ public final class RiscvArchitecture implements Architecture {
         try {
             MachineSnapshot.write(RiscvStorage.snapshot(machine.node().address()), id, vm, bus, terminal);
             nbt.setLong(SNAPSHOT_TAG, id);
+            nbt.setBoolean(PIXELS_TAG, showsPixels);
         } catch (final Exception e) {
             LOGGER.warn("Failed saving RISC-V machine, it will boot again when loaded.", e);
         }
@@ -378,7 +401,23 @@ public final class RiscvArchitecture implements Architecture {
     }
 
     private void render() {
+        // Programs drawing take the screen; the console gets it back once they stopped for a bit.
+        final Framebuffer framebuffer = vm.getFramebuffer();
+        final double now = machine.upTime();
+        if (framebuffer.hasChanges()) {
+            lastDrawn = now;
+            if (!showsPixels) {
+                showsPixels = true;
+                isScreenModeSet = false;
+            }
+        } else if (showsPixels && hasConsoleOutput && now - lastDrawn >= CONSOLE_DELAY) {
+            showsPixels = false;
+            isScreenModeSet = false;
+        }
+        hasConsoleOutput = false;
+
         if (screen == null) {
+            framebuffer.discardChanges();
             return;
         }
         final TextBuffer target = screen;
@@ -387,6 +426,28 @@ public final class RiscvArchitecture implements Architecture {
             target.setBackgroundColor(background);
             target.set(column, row, text, false);
         });
+
+        if (!(target instanceof PixelScreen pixelScreen)) {
+            framebuffer.discardChanges();
+            return;
+        }
+        if (!isScreenModeSet) {
+            isScreenModeSet = true;
+            if (showsPixels) {
+                pixelScreen.setPixelMode(Framebuffer.WIDTH, Framebuffer.HEIGHT);
+                framebuffer.markChanged();
+            } else {
+                pixelScreen.setPixelMode(0, 0);
+            }
+        }
+        if (!showsPixels) {
+            framebuffer.discardChanges();
+            return;
+        }
+        final Framebuffer.Rows rows = framebuffer.takeChanges();
+        if (rows != null) {
+            pixelScreen.setPixelRows(rows.first(), rows.colors());
+        }
     }
 
     private void pumpConsole() {
@@ -398,6 +459,7 @@ public final class RiscvArchitecture implements Architecture {
         console.flip();
         if (console.hasRemaining()) {
             terminal.putOutput(console);
+            hasConsoleOutput = true;
         }
 
         while (vm.canWriteConsole() && (value = terminal.readInput()) >= 0) {
@@ -422,11 +484,13 @@ public final class RiscvArchitecture implements Architecture {
                 case "key_down" -> {
                     if (args.length >= 3) {
                         keyboard.keyDown(toInt(args[1]), toInt(args[2]));
+                        sendKey(toInt(args[2]), true);
                     }
                 }
                 case "key_up" -> {
                     if (args.length >= 3) {
                         keyboard.keyUp(toInt(args[2]));
+                        sendKey(toInt(args[2]), false);
                     }
                 }
                 case "clipboard" -> {
@@ -437,6 +501,13 @@ public final class RiscvArchitecture implements Architecture {
                 default -> {
                 }
             }
+        }
+    }
+
+    private void sendKey(final int code, final boolean isDown) {
+        final int evdev = KeyCodes.toEvdev(code);
+        if (evdev != 0) {
+            vm.sendKey(evdev, isDown);
         }
     }
 
@@ -478,6 +549,7 @@ public final class RiscvArchitecture implements Architecture {
         }
         candidate.setResolution(Terminal.WIDTH, Terminal.HEIGHT);
         renderer.invalidate();
+        isScreenModeSet = false;
         screen = candidate;
     }
 

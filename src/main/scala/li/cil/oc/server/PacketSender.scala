@@ -749,6 +749,29 @@ object PacketSender {
     }
   }
 
+  def appendTextBufferPixelMode(pb: PacketBuilder, w: Int, h: Int): Unit = {
+    pb.writePacketType(PacketType.TextBufferMultiPixelMode)
+
+    pb.writeInt(w)
+    pb.writeInt(h)
+  }
+
+  // Colors go as three bytes each, red first.
+  def appendTextBufferPixelRows(pb: PacketBuilder, firstRow: Int, colors: Array[Int], offset: Int, count: Int): Unit = {
+    pb.writePacketType(PacketType.TextBufferMultiPixelRows)
+
+    pb.writeInt(firstRow)
+    pb.writeInt(count)
+    val bytes = new Array[Byte](count * 3)
+    for (i <- 0 until count) {
+      val color = colors(offset + i)
+      bytes(i * 3) = (color >> 16).toByte
+      bytes(i * 3 + 1) = (color >> 8).toByte
+      bytes(i * 3 + 2) = color.toByte
+    }
+    pb.write(bytes)
+  }
+
   def sendTextBufferInit(address: String, value: NBTTagCompound, player: EntityPlayerMP):Unit ={
     val pb = new CompressedPacketBuilder(PacketType.TextBufferInit)
 

@@ -23,6 +23,7 @@ import li.cil.sedna.device.serial.UART16550A;
 import li.cil.sedna.device.virtio.VirtIOBlockDevice;
 import li.cil.sedna.device.virtio.VirtIOConsoleDevice;
 import li.cil.sedna.device.virtio.VirtIOFileSystemDevice;
+import li.cil.sedna.device.virtio.VirtIOKeyboardDevice;
 import li.cil.sedna.device.virtio.VirtIONetworkDevice;
 import li.cil.sedna.devicetree.DeviceTreeRegistry;
 import li.cil.sedna.fs.FileSystem;
@@ -41,7 +42,7 @@ import java.util.Optional;
 
 /**
  * A RISC-V board: RAM, a UART console, a real time clock, disks, floppy drives, network interfaces,
- * the device bus ports, the component window and the guest scripts. Boots the firmware it is given, copied to the
+ * a framebuffer and keyboard, the device bus ports, the component window and the guest scripts. Boots the firmware it is given, copied to the
  * start of RAM: the bundled Linux boot loader, or a bare-metal program. Independent of Minecraft,
  * so it can be booted from tests.
  */
@@ -49,8 +50,11 @@ public final class RiscvMachine implements AutoCloseable {
     private static final long MEMORY_ADDRESS = 0x80000000L;
     private static final long FIRMWARE_ALIGNMENT = 0x1000;
     // Linux maps the component window as a UIO device, for programs to use without root's help.
-    private static final String WINDOW_COMPATIBLE = "oc,component-bus";
-    private static final String BOOT_ARGUMENTS = "root=/dev/vda rw uio_pdrv_genirq.of_id=" + WINDOW_COMPATIBLE;
+    // Programs find it by its name, component-bus; this is short as the boot arguments must be.
+    private static final String WINDOW_COMPATIBLE = "oc,window";
+    // The framebuffer is for programs to draw on; the console stays on the UART. Mapping all
+    // consoles to a framebuffer there is not keeps fbcon from taking it over. At most 64 chars.
+    private static final String BOOT_ARGUMENTS = "root=/dev/vda rw uio_pdrv_genirq.of_id=" + WINDOW_COMPATIBLE + " fbcon=map:1";
 
     // Disks sit at fixed addresses in slot order, so the first one is always /dev/vda.
     private static final long DISK_BASE_ADDRESS = 0x20000000L;
@@ -64,6 +68,8 @@ public final class RiscvMachine implements AutoCloseable {
     private static final long NETWORK_BASE_ADDRESS = 0x21000000L;
     private static final int NETWORK_STRIDE = 0x1000;
     private static final int[] NETWORK_INTERRUPTS = {0xD, 0xE, 0xF, 0x10, 0x11, 0x12};
+    private static final long FRAMEBUFFER_ADDRESS = 0x23000000L;
+    private static final int KEYBOARD_INTERRUPT = 0x17;
     // Bare-metal programs find the component window here.
     private static final long WINDOW_ADDRESS = 0x30000000L;
     private static final int BUS_INTERRUPT = 0x3;
@@ -77,7 +83,7 @@ public final class RiscvMachine implements AutoCloseable {
     private static final String SCRIPTS_TAG = "builtin";
     private static final String SCRIPTS_RESOURCE = "/li/cil/oc/riscv/scripts.zip";
 
-    private static final int STATE_VERSION = 4;
+    private static final int STATE_VERSION = 5;
     private static final int MEMORY_COPY_CHUNK = 64 * 1024;
 
     private static byte[] linuxBootloader;
@@ -95,6 +101,21 @@ public final class RiscvMachine implements AutoCloseable {
                 node.addProp(DevicePropertyNames.COMPATIBLE, WINDOW_COMPATIBLE);
             }
         });
+        DeviceTreeRegistry.putProvider(Framebuffer.class, new DeviceTreeProvider() {
+            @Override
+            public Optional<String> getName(final Device device) {
+                return Optional.of("framebuffer");
+            }
+
+            @Override
+            public void visit(final DeviceTree node, final MemoryMap memoryMap, final Device device) {
+                node.addProp(DevicePropertyNames.COMPATIBLE, "simple-framebuffer")
+                    .addProp("width", Framebuffer.WIDTH)
+                    .addProp("height", Framebuffer.HEIGHT)
+                    .addProp("stride", Framebuffer.STRIDE)
+                    .addProp("format", Framebuffer.FORMAT);
+            }
+        });
     }
 
     private final byte[] firmware;
@@ -106,6 +127,8 @@ public final class RiscvMachine implements AutoCloseable {
     private final VirtIOBlockDevice[] diskDevices;
     private final VirtIOBlockDevice[] floppyDevices;
     private final VirtIONetworkDevice[] networkDevices;
+    private final Framebuffer framebuffer = new Framebuffer();
+    private final VirtIOKeyboardDevice keyboard;
     private final VirtIOConsoleDevice busPorts;
     private final VirtIOFileSystemDevice builtin;
     private final ComponentWindow window;
@@ -138,12 +161,14 @@ public final class RiscvMachine implements AutoCloseable {
         diskDevices = new VirtIOBlockDevice[disks.size()];
         floppyDevices = new VirtIOBlockDevice[floppyCount];
         networkDevices = new VirtIONetworkDevice[networkCount];
+        keyboard = new VirtIOKeyboardDevice(board.getMemoryMap());
         busPorts = new VirtIOConsoleDevice(board.getMemoryMap(), BUS_PORT_NAMES);
         builtin = new VirtIOFileSystemDevice(board.getMemoryMap(), SCRIPTS_TAG, getScripts());
         window = new ComponentWindow(() -> board.getCpu().getFrequency());
 
         uart.getInterrupt().set(UART_INTERRUPT, board.getInterruptController());
         rtc.getInterrupt().set(RTC_INTERRUPT, board.getInterruptController());
+        keyboard.getInterrupt().set(KEYBOARD_INTERRUPT, board.getInterruptController());
         busPorts.getInterrupt().set(BUS_INTERRUPT, board.getInterruptController());
         builtin.getInterrupt().set(SCRIPTS_INTERRUPT, board.getInterruptController());
         window.getInterrupt().set(WINDOW_INTERRUPT, board.getInterruptController());
@@ -175,7 +200,10 @@ public final class RiscvMachine implements AutoCloseable {
         if (!board.addDevice(WINDOW_ADDRESS, window)) {
             throw new IllegalStateException("Failed mapping component window.");
         }
-        if (board.addDevice(uart).isEmpty() || board.addDevice(rtc).isEmpty()
+        if (!board.addDevice(FRAMEBUFFER_ADDRESS, framebuffer)) {
+            throw new IllegalStateException("Failed mapping framebuffer.");
+        }
+        if (board.addDevice(uart).isEmpty() || board.addDevice(rtc).isEmpty() || board.addDevice(keyboard).isEmpty()
             || board.addDevice(busPorts).isEmpty() || board.addDevice(builtin).isEmpty()) {
             throw new IllegalStateException("Failed mapping devices.");
         }
@@ -308,6 +336,8 @@ public final class RiscvMachine implements AutoCloseable {
         BinarySerialization.serialize(output, busPorts, VirtIOConsoleDevice.class);
         BinarySerialization.serialize(output, builtin, VirtIOFileSystemDevice.class);
         window.saveState(output);
+        BinarySerialization.serialize(output, keyboard, VirtIOKeyboardDevice.class);
+        framebuffer.save(output);
     }
 
     /**
@@ -354,6 +384,8 @@ public final class RiscvMachine implements AutoCloseable {
         BinarySerialization.deserialize(input, VirtIOConsoleDevice.class, busPorts);
         BinarySerialization.deserialize(input, VirtIOFileSystemDevice.class, builtin);
         window.loadState(input);
+        BinarySerialization.deserialize(input, VirtIOKeyboardDevice.class, keyboard);
+        framebuffer.load(input);
     }
 
     // --------------------------------------------------------------------- //
@@ -406,6 +438,17 @@ public final class RiscvMachine implements AutoCloseable {
 
     public ComponentWindow getWindow() {
         return window;
+    }
+
+    public Framebuffer getFramebuffer() {
+        return framebuffer;
+    }
+
+    /**
+     * Presses or releases a key on the machine's keyboard, by its Linux input event code.
+     */
+    public void sendKey(final int code, final boolean isDown) {
+        keyboard.sendKeyEvent(code, isDown);
     }
 
     // --------------------------------------------------------------------- //

@@ -9,7 +9,9 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @Timeout(value = 5, unit = TimeUnit.MINUTES)
 public final class SnapshotTest {
@@ -28,6 +30,8 @@ public final class SnapshotTest {
             test.login();
             // Lives only in the shell's memory, so it survives only if the process does.
             test.type("MARK=still-$((40+2)); echo on-disk > /root/file; sync");
+            // A white pixel in the top left corner of the framebuffer.
+            test.type("printf '\\377\\377\\377\\0' > /dev/fb0");
             test.type("echo snap-$((1+1))");
             test.awaitScreen("snap-2");
             test.snapshot(snapshot, SNAPSHOT_ID);
@@ -36,6 +40,11 @@ public final class SnapshotTest {
         try (final TestMachine test = TestMachine.restore(snapshot, SNAPSHOT_ID, List.of(FileBlockDevice.open(diskImage, DISK_SIZE)))) {
             test.type("echo $MARK $(cat /root/file)");
             test.awaitScreen("still-42 on-disk");
+            test.machine.getFramebuffer().markChanged();
+            final Framebuffer.Rows rows = test.machine.getFramebuffer().takeChanges();
+            assertNotNull(rows);
+            assertEquals(0, rows.first());
+            assertEquals(0xFFFFFF, rows.colors()[0]);
         }
     }
 
