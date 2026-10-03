@@ -182,11 +182,6 @@ object Achievement {
     withParent(DiskDrive).
     whenCrafting(Constants.ItemName.Floppy).
     add()
-  val OpenOS: MCAchievement = newAchievement("openOS").
-    at(10, 9).
-    withParent(Floppy).
-    whenCrafting(Constants.ItemName.OpenOS).
-    add()
   val Raid: MCAchievement = newAchievement("raid").
     at(8, 10).
     withParent(DiskDrive).

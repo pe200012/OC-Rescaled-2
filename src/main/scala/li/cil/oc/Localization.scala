@@ -84,7 +84,6 @@ object Localization {
   }
 
   object Chat {
-    def WarningLuaFallback: ITextComponent = new TextComponentString("§aOpenComputers§f: ").appendSibling(localizeLater("gui.Chat.WarningLuaFallback"))
 
     def WarningProjectRed: ITextComponent = new TextComponentString("§aOpenComputers§f: ").appendSibling(localizeLater("gui.Chat.WarningProjectRed"))
 

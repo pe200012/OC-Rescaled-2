@@ -22,7 +22,6 @@ import li.cil.oc.common.item.data.TabletData
 import li.cil.oc.common.item.traits.Delegate
 import li.cil.oc.common.item.traits.SimpleItem
 import li.cil.oc.common.recipe.Recipes
-import li.cil.oc.server.machine.luac.LuaStateFactory
 import net.minecraft.block.Block
 import net.minecraft.creativetab.CreativeTabs
 import net.minecraft.item.EnumDyeColor
@@ -212,7 +211,7 @@ object Items extends ItemAPI {
 
       safeGetStack(Constants.ItemName.WirelessNetworkCardTier2),
 
-      LuaStateFactory.setDefaultArch(safeGetStack(Constants.ItemName.CPUTier3)),
+      safeGetStack(Constants.ItemName.CPUTier3),
       safeGetStack(Constants.ItemName.RAMTier6),
       safeGetStack(Constants.ItemName.RAMTier6)
     ).filter(!_.isEmpty)
@@ -232,7 +231,7 @@ object Items extends ItemAPI {
       safeGetStack(Constants.ItemName.RedstoneCardTier2),
       safeGetStack(Constants.ItemName.WirelessNetworkCardTier2),
 
-      LuaStateFactory.setDefaultArch(safeGetStack(Constants.ItemName.CPUTier3)),
+      safeGetStack(Constants.ItemName.CPUTier3),
       safeGetStack(Constants.ItemName.RAMTier6),
       safeGetStack(Constants.ItemName.RAMTier6)
     ).filter(!_.isEmpty)
@@ -269,12 +268,11 @@ object Items extends ItemAPI {
       safeGetStack(Constants.ItemName.WirelessNetworkCardTier2),
       safeGetStack(Constants.ItemName.InternetCard),
 
-      LuaStateFactory.setDefaultArch(safeGetStack(Constants.ItemName.CPUTier3)),
+      safeGetStack(Constants.ItemName.CPUTier3),
       safeGetStack(Constants.ItemName.RAMTier6),
       safeGetStack(Constants.ItemName.RAMTier6),
 
       safeGetStack(Constants.ItemName.LuaBios),
-      safeGetStack(Constants.ItemName.OpenOS),
       safeGetStack(Constants.ItemName.HDDTier3)
     ).filter(!_.isEmpty)
     data.containers = Array(
@@ -306,14 +304,13 @@ object Items extends ItemAPI {
       safeGetStack(Constants.ItemName.RedstoneCardTier2),
       safeGetStack(Constants.ItemName.WirelessNetworkCardTier2),
 
-      LuaStateFactory.setDefaultArch(safeGetStack(Constants.ItemName.CPUTier3)),
+      safeGetStack(Constants.ItemName.CPUTier3),
       safeGetStack(Constants.ItemName.RAMTier6),
       safeGetStack(Constants.ItemName.RAMTier6),
 
       safeGetStack(Constants.ItemName.LuaBios),
       safeGetStack(Constants.ItemName.HDDTier3)
     ).padTo(32, ItemStack.EMPTY)
-    data.items(31) = safeGetStack(Constants.ItemName.OpenOS)
     data.container = safeGetStack(Constants.BlockName.DiskDrive)
 
     data.createItemStack()

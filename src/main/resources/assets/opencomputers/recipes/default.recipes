@@ -30,18 +30,6 @@ wrench {
           ["", "oc:circuitChip2", ""],
           ["", ingotIron, ""]]
 }
-lootdisks: [
-  {
-    name: "opencomputers:openos"
-    type: shapeless
-    input: ["oc:floppy", "oc:manual"]
-  },
-  {
-    name: "opencomputers:oppm"
-    type: shapeless
-    input: ["oc:floppy", "oc:materialInterweb"]
-  }
-]
 luabios {
   type: shapeless
   input: ["oc:eeprom", "oc:manual"]

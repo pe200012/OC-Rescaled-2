@@ -17,7 +17,6 @@ import li.cil.oc.common.tileentity.Robot
 import li.cil.oc.integration.util
 import li.cil.oc.server.PacketSender as ServerPacketSender
 import li.cil.oc.server.component.Keyboard
-import li.cil.oc.server.machine.luac.LuaStateFactory
 import li.cil.oc.server.machine.{Callbacks, Machine}
 import li.cil.oc.util.*
 import li.cil.oc.util.ExtendedWorld.*
@@ -207,9 +206,6 @@ object EventHandler {
     if (SideTracker.isServer) e.player match {
       case _: FakePlayer => // Nope
       case player: EntityPlayerMP =>
-        if (!LuaStateFactory.isAvailable && !LuaStateFactory.luajRequested) {
-          player.sendMessage(Localization.Chat.WarningLuaFallback)
-        }
         if (Recipes.hadErrors) {
           player.sendMessage(Localization.Chat.WarningRecipes)
         }

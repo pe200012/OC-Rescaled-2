@@ -125,7 +125,6 @@ object Constants {
     final val NavigationUpgrade = "navigationupgrade"
     final val NetworkCard = "lancard"
     final val NumPad = "numpad"
-    final val OpenOS = "openos"
     final val PistonUpgrade = "pistonupgrade"
     final val StickyPistonUpgrade = "stickypistonupgrade"
     final val Present = "present"

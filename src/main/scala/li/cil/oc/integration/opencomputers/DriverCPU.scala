@@ -9,7 +9,6 @@ import li.cil.oc.common.Tier
 import li.cil.oc.common.item
 import li.cil.oc.common.item.Delegator
 import li.cil.oc.server.component
-import li.cil.oc.server.machine.luac.NativeLuaArchitecture
 import net.minecraft.item.ItemStack
 import net.minecraft.nbt.NBTTagCompound
 
@@ -41,13 +40,7 @@ abstract class DriverCPU extends Item with api.driver.item.MutableProcessor with
 
   override def architecture(stack: ItemStack): Class[? <: api.machine.Architecture] = {
     if (stack.hasTagCompound) {
-      val archClass = stack.getTagCompound.getString(Settings.namespace + "archClass") match {
-        case clazz if clazz == classOf[NativeLuaArchitecture].getName =>
-          // Migrate old saved CPUs to new versions (since the class they refer still
-          // exists, but is abstract, which would lead to issues).
-          api.Machine.LuaArchitecture.getName
-        case clazz => clazz
-      }
+      val archClass = stack.getTagCompound.getString(Settings.namespace + "archClass")
       if (!archClass.isEmpty) try return Class.forName(archClass).asSubclass(classOf[api.machine.Architecture]) catch {
         case t: Throwable =>
           OpenComputers.log.warn("Failed getting class for CPU architecture. Resetting CPU to use the default.", t)

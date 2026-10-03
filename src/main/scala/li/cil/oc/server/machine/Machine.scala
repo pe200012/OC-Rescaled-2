@@ -22,6 +22,7 @@ import li.cil.oc.api.machine.MachineHost
 import li.cil.oc.api.machine.Value
 import li.cil.oc.api.network.Component
 import li.cil.oc.api.network.ComponentConnector
+import li.cil.oc.api.network.ManagedEnvironment
 import li.cil.oc.api.network.Message
 import li.cil.oc.api.network.Node
 import li.cil.oc.api.network.Visibility
@@ -54,10 +55,8 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
     withConnector(Settings.get.bufferComputer).
     create()
 
-  val tmp = if (Settings.get.tmpSize > 0) {
-    Option(FileSystem.asManagedEnvironment(FileSystem.
-      fromMemory(Settings.get.tmpSize * 1024), "tmpfs", null, null, 5))
-  } else None
+  // The temporary file system Lua had at /tmp. Linux has a tmpfs of its own.
+  val tmp: Option[ManagedEnvironment] = None
 
   var architecture: Architecture = scala.compiletime.uninitialized
 

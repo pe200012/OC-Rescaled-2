@@ -35,8 +35,8 @@ class Robot(val agent: tileentity.Robot) extends AbstractManagedEnvironment with
     withConnector(Settings.get.bufferRobot).
     create()
 
-  val romRobot = Option(api.FileSystem.asManagedEnvironment(api.FileSystem.
-    fromClass(OpenComputers.getClass, Settings.resourceDomain, "lua/component/robot"), "robot"))
+  // Held the Lua robot library, gone with Lua.
+  val romRobot: Option[api.network.ManagedEnvironment] = None
 
   private final lazy val deviceInfo = Map(
     DeviceAttribute.Class -> DeviceClass.System,

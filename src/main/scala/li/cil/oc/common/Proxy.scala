@@ -12,8 +12,6 @@ import li.cil.oc.common.item.traits.Delegate
 import li.cil.oc.common.recipe.Recipes
 import li.cil.oc.integration.Mods
 import li.cil.oc.server.*
-import li.cil.oc.server.machine.luac.{LuaStateFactory, NativeLua52Architecture, NativeLua53Architecture, NativeLua54Architecture, NativeLua55Architecture, NativeLuaPlutoArchitecture}
-import li.cil.oc.server.machine.luaj.LuaJLuaArchitecture
 import li.cil.oc.server.machine.riscv.{RiscvArchitecture, RiscvHookImplementations}
 import net.minecraft.block.Block
 import net.minecraft.item.Item
@@ -76,32 +74,10 @@ class Proxy {
 
     api.API.config = Settings.get.config
 
-    if (LuaStateFactory.isAvailable) {
-      if (LuaStateFactory.include53) {
-        api.Machine.add(classOf[NativeLua53Architecture])
-      }
-      if (LuaStateFactory.include54) {
-        api.Machine.add(classOf[NativeLua54Architecture])
-      }
-      if (LuaStateFactory.include55) {
-        api.Machine.add(classOf[NativeLua55Architecture])
-      }
-      if (LuaStateFactory.includePluto) {
-        api.Machine.add(classOf[NativeLuaPlutoArchitecture])
-      }
-      if (LuaStateFactory.include52) {
-        api.Machine.add(classOf[NativeLua52Architecture])
-      }
-    }
-    if (LuaStateFactory.includeLuaJ) {
-      api.Machine.add(classOf[LuaJLuaArchitecture])
-    }
+    // RISC-V is the only architecture. Add-ons asking for the Lua one get it, too.
     api.Machine.add(classOf[RiscvArchitecture])
     RiscvHookImplementations.install()
-
-    api.Machine.LuaArchitecture =
-      if (Settings.get.forceLuaJ) classOf[LuaJLuaArchitecture]
-      else api.Machine.architectures.asScala.head
+    api.Machine.LuaArchitecture = classOf[RiscvArchitecture]
   }
 
   def init(e: FMLInitializationEvent):Unit ={
