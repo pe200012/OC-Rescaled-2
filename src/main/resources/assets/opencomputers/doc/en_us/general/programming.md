@@ -17,6 +17,12 @@ waits up to five seconds and returns the next one, with its `type`, the `deviceI
 
 The machine itself is the device `computer`, always the first one, with `beep`, `energy`, `maxEnergy`, `uptime`, `users`, `addUser`, `removeUser` and `pushSignal`.
 
+## The shell
+
+`component` calls components straight from the shell, also over `ssh`. On its own it lists the devices, `component redstone` lists a device's methods, by type or ID, and
+`component redstone setOutput 1 15`
+calls one. Arguments are read as JSON where they can be, otherwise as text, and results print as JSON. `component wait` waits for the next signal and prints it.
+
 ## Robots
 
 `import robot`

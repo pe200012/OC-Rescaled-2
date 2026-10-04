@@ -17,6 +17,12 @@
 
 机器本身是名为`computer`的设备，总是排在第一个，提供`beep`、`energy`、`maxEnergy`、`uptime`、`users`、`addUser`、`removeUser`和`pushSignal`。
 
+## 命令行
+
+`component`可以直接在shell里调用组件，通过`ssh`也行。单独运行时列出所有设备；`component redstone`列出某个设备的方法，可以按类型或ID指定；
+`component redstone setOutput 1 15`
+则调用一个方法。参数能按JSON解析的就按JSON解析，否则当作文本；结果以JSON输出。`component wait`等待下一个信号并输出它。
+
 ## 机器人
 
 `import robot`

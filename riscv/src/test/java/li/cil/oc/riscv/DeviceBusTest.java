@@ -91,6 +91,24 @@ public final class DeviceBusTest {
     }
 
     @Test
+    public void componentCommandCallsMethods() throws Exception {
+        final FakeDevices devices = new FakeDevices();
+        final TestMachine test = TestMachine.boot(devices);
+
+        test.login();
+        // env -i: no login profile, as for a command run over ssh.
+        test.type("env -i /usr/bin/component redstone setOutput 1 15; component redstone readBoth; component; component nope; echo done-$?");
+        test.awaitScreen("done-1");
+
+        final String screen = test.screenText();
+        assertTrue(screen.lines().anyMatch(line -> line.strip().equals("0")), screen);
+        assertTrue(screen.contains("/wA=") && screen.contains("gAE="), screen);
+        assertTrue(screen.contains(ROBOT.toString()), screen);
+        assertTrue(screen.contains("component: no device nope"), screen);
+        assertEquals(List.of("setOutput[1.0, 15.0]"), devices.calls);
+    }
+
+    @Test
     public void robotLibraryCallsRobot() throws Exception {
         final FakeDevices devices = new FakeDevices();
         final TestMachine test = TestMachine.boot(devices);

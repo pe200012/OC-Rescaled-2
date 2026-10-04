@@ -17,6 +17,12 @@ attend jusqu'à cinq secondes et renvoie le suivant, avec son `type`, le `device
 
 La machine elle-même est le périphérique `computer`, toujours le premier, avec `beep`, `energy`, `maxEnergy`, `uptime`, `users`, `addUser`, `removeUser` et `pushSignal`.
 
+## Le shell
+
+`component` appelle les composants directement depuis le shell, y compris par `ssh`. Seul, il liste les périphériques, `component redstone` liste les méthodes d'un périphérique, par type ou par ID, et
+`component redstone setOutput 1 15`
+en appelle une. Les arguments sont lus comme du JSON quand c'est possible, sinon comme du texte, et les résultats s'affichent en JSON. `component wait` attend le signal suivant et l'affiche.
+
 ## Robots
 
 `import robot`

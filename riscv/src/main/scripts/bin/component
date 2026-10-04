@@ -1,0 +1,67 @@
+#!/usr/bin/micropython
+USAGE = """Calls components from the shell:
+  component                          lists the devices
+  component redstone                 lists a device's methods, by type or ID
+  component redstone setOutput 1 15  calls a method; arguments are JSON where they parse
+  component wait [signal] [ms]       waits for a signal
+Results and signals print as JSON; binary shows as {"$bytes": base64}."""
+
+import binascii
+import json
+import sys
+
+# A command run over ssh gets no login profile, and so no MICROPYPATH.
+for path in ("/mnt/builtin/lib/micropython", "/run/oc2/lib/micropython"):
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+from devices import bus
+
+
+def fail(message):
+    sys.stderr.write("component: %s\n" % message)
+    sys.exit(1)
+
+
+def argument(text):
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text
+
+
+def plain(value):
+    if isinstance(value, (bytes, bytearray)):
+        return {"$bytes": binascii.b2a_base64(value)[:-1].decode()}
+    if isinstance(value, list):
+        return [plain(v) for v in value]
+    if isinstance(value, dict):
+        return {k: plain(v) for k, v in value.items()}
+    return value
+
+
+def device(name):
+    found = bus.get(name) or bus.find(name)
+    if found is None:
+        fail("no device %s" % name)
+    return found
+
+
+args = sys.argv[1:]
+try:
+    if not args:
+        for d in bus.list():
+            print("%s\t%s" % (d["deviceId"], ", ".join(sorted(d.get("typeNames") or []))))
+    elif args[0] in ("-h", "--help"):
+        print(USAGE)
+    elif args[0] == "wait":
+        event = bus.wait_event(int(args[2]) if len(args) > 2 else None, args[1] if len(args) > 1 else None)
+        if event is None:
+            sys.exit(1)
+        print(json.dumps(plain(event)))
+    elif len(args) == 1:
+        print(device(args[0]), end="")
+    else:
+        print(json.dumps(plain(device(args[0]).invoke(args[1], *[argument(a) for a in args[2:]]))))
+except Exception as e:
+    fail(e)
