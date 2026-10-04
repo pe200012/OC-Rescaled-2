@@ -121,8 +121,8 @@ class Robot(playerInventory: InventoryPlayer, val robot: tileentity.Robot) exten
       else if (scaleY > scale) {
         GlStateManager.translate(0, buffer.renderHeight * (scaleY - scale) / 2, 0)
       }
+      // Already fitted, so not scaled by this.scale again: that shrank buffers too big for the area.
       GlStateManager.scale(scale, scale, scale)
-      GlStateManager.scale(this.scale, this.scale, 1)
       BufferRenderer.drawText(buffer)
     }
   }
