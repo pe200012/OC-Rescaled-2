@@ -18,7 +18,11 @@ import scala.collection.mutable
 abstract class Template {
   protected val suggestedComponents:Array[(String, IInventory=>Boolean)] = Array(
     "BIOS" -> hasComponent(Constants.ItemName.EEPROM),
-    "Screen" -> hasComponent(Constants.BlockName.ScreenTier1),
+    "Screen" -> ((inventory: IInventory) => Array(
+      Constants.BlockName.ScreenTier1,
+      Constants.BlockName.ScreenTier2,
+      Constants.BlockName.ScreenTier3).
+      exists(name => hasComponent(name)(inventory))),
     "Keyboard" -> hasComponent(Constants.BlockName.Keyboard),
     "GraphicsCard" -> ((inventory: IInventory) => Array(
       Constants.ItemName.APUCreative,

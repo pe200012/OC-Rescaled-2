@@ -11,8 +11,11 @@ import li.cil.oc.common.tileentity
 import net.minecraft.item.ItemStack
 
 object DriverScreen extends Item with HostAware {
+  // Screens of any tier go into robots, as only the best one is made.
   override def worksWith(stack: ItemStack) = isOneOf(stack,
-    api.Items.get(Constants.BlockName.ScreenTier1))
+    api.Items.get(Constants.BlockName.ScreenTier1),
+    api.Items.get(Constants.BlockName.ScreenTier2),
+    api.Items.get(Constants.BlockName.ScreenTier3))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) = host match {
     case screen: tileentity.Screen if screen.tier > 0 => new component.Screen(screen)
