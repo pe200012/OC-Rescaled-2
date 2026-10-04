@@ -25,8 +25,6 @@ import net.minecraftforge.fml.relauncher.SideOnly
 import net.minecraftforge.fml.common.Optional
 
 import scala.jdk.CollectionConverters.*
-import scala.util.boundary
-import scala.util.boundary.break
 
 //@Optional.Interface(iface = "li.cil.oc.common.tileentity.traits.power.AppliedEnergistics2", modid = Mods.IDs.AppliedEnergistics2, striprefs = true)
 class Assembler extends traits.Environment with traits.PowerAcceptor with traits.Inventory with SidedEnvironment with traits.StateAware with traits.Tickable with DeviceInfo {
@@ -87,13 +85,8 @@ class Assembler extends traits.Environment with traits.PowerAcceptor with traits
 
   def start(finishImmediately: Boolean = false): Boolean = this.synchronized {
     AssemblerTemplates.select(getStackInSlot(0)) match {
-      case Some(template) if !isAssembling && output.isEmpty && template.validate(this)._1 =>
-        boundary:
-          for (slot <- 0 until getSizeInventory) {
-            val stack = getStackInSlot(slot)
-            if (!stack.isEmpty && !isItemValidForSlot(slot, stack)) 
-              break(false)
-          }
+      case Some(template) if !isAssembling && output.isEmpty && template.validate(this)._1 &&
+        (0 until getSizeInventory).forall(slot => getStackInSlot(slot).isEmpty || isItemValidForSlot(slot, getStackInSlot(slot))) =>
         val (stack, energy) = template.assemble(this)
         output = StackOption(stack)
         if (finishImmediately) {

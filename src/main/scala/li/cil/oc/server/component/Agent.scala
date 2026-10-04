@@ -30,6 +30,8 @@ import net.minecraft.util.math.Vec3d
 import net.minecraftforge.common.MinecraftForge
 
 import scala.jdk.CollectionConverters.*
+import scala.util.boundary
+import scala.util.boundary.break
 
 trait Agent extends traits.WorldControl with traits.InventoryControl with traits.InventoryWorldControl with traits.TankAware with traits.TankControl with traits.TankWorldControl {
   def agent: internal.Agent
@@ -80,7 +82,7 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
   def name(context: Context, args: Arguments): Array[AnyRef] = result(agent.name)
 
   @Callback(doc = "function(side:number[, face:number=side[, sneaky:boolean=false]]):boolean, string -- Perform a 'left click' towards the specified side. The `face' allows a more precise click calibration, and is relative to the targeted blockspace.")
-  def swing(context: Context, args: Arguments): Array[AnyRef] = {
+  def swing(context: Context, args: Arguments): Array[AnyRef] = boundary {
     // Swing the equipped tool (left click).
     val facing = checkSideForAction(args, 0)
     val sides =
@@ -152,7 +154,7 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
 
       player.setSneaking(false)
       if (success) {
-        result(true, what)
+        break(result(true, what))
       }
       reason = reason.orElse(Option(what))
     }
@@ -165,14 +167,14 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
       player.setSneaking(sneaky)
       val (ok, why) = click(player, blockPos.toBlockPos, facing)
       player.setSneaking(false)
-      return result(ok, why)
+      break(result(ok, why))
     }
 
     result(false, reason.orNull)
   }
 
   @Callback(doc = "function(side:number[, face:number=side[, sneaky:boolean=false[, duration:number=0]]]):boolean, string -- Perform a 'right click' towards the specified side. The `face' allows a more precise click calibration, and is relative to the targeted blockspace.")
-  def use(context: Context, args: Arguments): Array[AnyRef] = {
+  def use(context: Context, args: Arguments): Array[AnyRef] = boundary {
     val facing = checkSideForAction(args, 0)
     val sides =
       if (args.isInteger(1)) {
@@ -243,7 +245,7 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
 
       player.setSneaking(false)
       if (success) {
-        result(true, what)
+        break(result(true, what))
       }
     }
 
@@ -251,7 +253,7 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
   }
 
   @Callback(doc = "function(side:number[, face:number=side[, sneaky:boolean=false]]):boolean -- Place a block towards the specified side. The `face' allows a more precise click calibration, and is relative to the targeted blockspace.")
-  def place(context: Context, args: Arguments): Array[AnyRef] = {
+  def place(context: Context, args: Arguments): Array[AnyRef] = boundary {
     val facing = checkSideForAction(args, 0)
     val sides =
       if (args.isInteger(1)) {
@@ -264,7 +266,7 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
     val sneaky = args.isBoolean(2) && args.checkBoolean(2)
     val stack = agent.mainInventory.getStackInSlot(agent.selectedSlot)
     if (stack.isEmpty) {
-      return result((), "nothing selected")
+      break(result((), "nothing selected"))
     }
 
     for (side <- sides) {
@@ -296,7 +298,7 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
       player.setSneaking(false)
       if (success) {
         onWorldInteraction(context, Settings.get.placeDelay)
-        result(true)
+        break(result(true))
       }
     }
 

@@ -201,7 +201,7 @@ object PrintData {
           break(value)
         }
       }
-    0
+      0
   }
 
   def nbtToShape(nbt: NBTTagCompound): Shape = {

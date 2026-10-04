@@ -106,6 +106,6 @@ class UpgradeDatabase(val data: IInventory) extends AbstractManagedEnvironment w
           if (hash.toString == needle) break(slot + offset)
         case null =>
       }
-    -1
+      -1
   }
 }

@@ -5,9 +5,11 @@ import net.minecraft.item.ItemStack
 import net.minecraftforge.oredict.ShapelessOreRecipe
 import scala.jdk.CollectionConverters.*
 import scala.collection.mutable.ListBuffer
+import scala.util.boundary
+import scala.util.boundary.break
 
 class ExtendedFuzzyShapelessRecipe(result: ItemStack, ingredients: AnyRef*) extends ExtendedShapelessOreRecipe(result, ingredients*) {
-  override def matches(inv: net.minecraft.inventory.InventoryCrafting, world: net.minecraft.world.World): Boolean = {
+  override def matches(inv: net.minecraft.inventory.InventoryCrafting, world: net.minecraft.world.World): Boolean = boundary {
     val requiredItems: ListBuffer[ItemStack] = ListBuffer.from(ingredients.map(any => any.asInstanceOf[ItemStack]).toList)
       //.groupBy{ case s: ItemStack => s.getItem }.mapValues(_.size).toSeq: _*)
     for (i <- 0 until inv.getSizeInventory) {
@@ -21,6 +23,10 @@ class ExtendedFuzzyShapelessRecipe(result: ItemStack, ingredients: AnyRef*) exte
         })
         if (index >= 0) {
           requiredItems.remove(index)
+        }
+        else {
+          // Items the recipe does not take would be used up, too.
+          break(false)
         }
       }
     }

@@ -18,8 +18,8 @@ object ToolDurabilityProviders {
         val durability = IMC.tryInvokeStatic(provider, stack)(Double.NaN)
         if (!durability.isNaN) break(Option(durability))
       }
-    // Fall back to vanilla damage values.
-    if (stack.isItemStackDamageable) Option(1.0 - stack.getItemDamage.toDouble / stack.getMaxDamage.toDouble)
-    else None
+      // Fall back to vanilla damage values.
+      if (stack.isItemStackDamageable) Option(1.0 - stack.getItemDamage.toDouble / stack.getMaxDamage.toDouble)
+      else None
   }
 }

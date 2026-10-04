@@ -26,18 +26,20 @@ trait InventoryWorldControlMk2 extends InventoryAware with WorldAware with SideR
           // Cannot drop into that inventory.
           result(false, "inventory full/invalid slot")
         }
-        else if (stack.getCount == 0) {
-          // Dropped whole stack.
-          this.inventory.setInventorySlotContents(selectedSlot, ItemStack.EMPTY)
-        }
         else {
-          // Dropped partial stack.
-          this.inventory.markDirty()
+          if (stack.getCount == 0) {
+            // Dropped whole stack.
+            this.inventory.setInventorySlotContents(selectedSlot, ItemStack.EMPTY)
+          }
+          else {
+            // Dropped partial stack.
+            this.inventory.markDirty()
+          }
+
+          context.pause(Settings.get.dropDelay)
+
+          result(true)
         }
-
-        context.pause(Settings.get.dropDelay)
-
-        result(true)
       })
     }
     else result(false)

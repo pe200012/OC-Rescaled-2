@@ -18,7 +18,7 @@ object ItemSearch {
       for (f <- focusedInput) {
         if (f()) break(true)
       }
-    false
+      false
   }
 
   def hoveredStack(container: GuiContainer, mouseX: Int, mouseY: Int): StackOption = {
@@ -26,6 +26,6 @@ object ItemSearch {
       for (f <- stackFocusing) {
         f(container, mouseX, mouseY).foreach(stack => break(StackOption(stack)))
       }
-    EmptyStack
+      EmptyStack
   }
 }

@@ -112,6 +112,6 @@ class RobotAfterimage extends SimpleBlock {
           case _ =>
         }
       }
-    None
+      None
   }
 }

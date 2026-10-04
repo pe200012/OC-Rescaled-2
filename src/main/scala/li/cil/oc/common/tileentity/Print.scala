@@ -57,7 +57,7 @@ class Print(val canToggle: Option[() => Boolean], val scheduleUpdate: Option[Int
           case null => false
         }) break(true)
       }
-    false
+      false
   }
 
   def addCollisionBoxesToList(mask: AxisAlignedBB, list: util.List[AxisAlignedBB], pos: BlockPos = BlockPos.ORIGIN): Unit = {

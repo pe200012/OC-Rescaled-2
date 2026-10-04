@@ -96,7 +96,7 @@ trait InventoryWorldControl extends InventoryAware with WorldAware with SideRest
           break(size - stack.getCount)
         else if (entity.isDead)
           break(size)
-    0
+      0
   }
 
   @Callback(doc = "function(side:number[, count:number=64]):boolean -- Suck up items from the specified side.")

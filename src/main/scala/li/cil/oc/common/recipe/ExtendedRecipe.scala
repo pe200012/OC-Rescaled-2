@@ -21,6 +21,7 @@ import net.minecraft.item.crafting.IRecipe
 import net.minecraft.nbt.NBTTagCompound
 
 import scala.jdk.CollectionConverters.*
+import scala.util.boundary
 import scala.util.control.Breaks._
 
 object ExtendedRecipe {
@@ -54,7 +55,8 @@ object ExtendedRecipe {
     stack
   }
 
-  def addNBTToResult(recipe: IRecipe, craftedStack: ItemStack, inventory: InventoryCrafting): ItemStack = {
+  // boundary.break in full: break alone is Breaks.break, used below.
+  def addNBTToResult(recipe: IRecipe, craftedStack: ItemStack, inventory: InventoryCrafting): ItemStack = boundary {
     val craftedItemName = api.Items.get(craftedStack)
 
     if (craftedItemName == navigationUpgrade) {
@@ -136,21 +138,21 @@ object ExtendedRecipe {
         if (beaconBlocks.exists(_.isItemEqual(stack))) {
           if (data.isBeaconBase) {
             // Crafting wouldn't change anything, prevent accidental resource loss.
-            ItemStack.EMPTY
+            boundary.break(ItemStack.EMPTY)
           }
           data.isBeaconBase = true
         }
         if (glowstoneDust.isItemEqual(stack)) {
           if (data.lightLevel == 15) {
             // Crafting wouldn't change anything, prevent accidental resource loss.
-            ItemStack.EMPTY
+            boundary.break(ItemStack.EMPTY)
           }
           data.lightLevel = math.min(15, data.lightLevel + 1)
         }
         if (glowstone.isItemEqual(stack)) {
           if (data.lightLevel == 15) {
             // Crafting wouldn't change anything, prevent accidental resource loss.
-            ItemStack.EMPTY
+            boundary.break(ItemStack.EMPTY)
           }
           data.lightLevel = math.min(15, data.lightLevel + 4)
         }

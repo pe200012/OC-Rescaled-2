@@ -70,7 +70,7 @@ object InventoryUtils {
         inventorySourceAt(position, side) match 
           case inv: Some[InventorySource] => break(inv)
           case _ =>
-    None
+      None
   }
 
   def anyInventoryAt(position: BlockPosition): Option[IItemHandler] = anyInventorySourceAt(position)
@@ -219,7 +219,7 @@ object InventoryUtils {
         val extracted = extractFromInventorySlot(consumer, inventory, slot, limit)
         if (extracted > 0)
           break(extracted)
-    0
+      0
   }
 
   def extractAnyFromInventory(consumer: (ItemStack, Boolean) => Unit, inventory: IInventory, side: EnumFacing, limit: Int): Int =
