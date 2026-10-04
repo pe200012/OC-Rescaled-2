@@ -1,119 +1,119 @@
+# robot.py - the robot's own component, like OpenComputers' Lua robot library.
+#
+# Actions take the side they act on, the front unless given, and return what the robot reports
+# first: True, or None when it failed. Moving and turning pause the machine until done. The
+# reasons for failures and the methods without a helper here are on `component`:
+#   robot.component.move(robot.FRONT)  ->  [None, 'impossible move']
+
 from devices import bus
-from oc2 import clock
 
-POLL_INTERVAL_MS = 1000
-DEFAULT_TIMEOUT_MS = 30000
-ACTION_COMPLETED_EVENT = "robotActionCompleted"
-
-_robot = bus.find("robot")
-if _robot is None:
+component = bus.find("robot")
+if component is None:
     raise Exception("robot device not found")
 
-direction = {
-    "forward": "forward",
-    "backward": "backward",
-    "upward": "upward",
-    "downward": "downward",
-    "left": "left",
-    "right": "right",
-}
-
-side = {
-    "front": "front",
-    "up": "up",
-    "down": "down",
-}
+# Sides as the robot sees them.
+DOWN, UP, BACK, FRONT, RIGHT, LEFT = range(6)
 
 
-def _deadline_from(timeout):
-    return clock.deadline(DEFAULT_TIMEOUT_MS if timeout is None else timeout)
+def _call(method, *args):
+    # Several results come as a list; arguments left as None count as not given.
+    result = getattr(component, method)(*args)
+    return result[0] if isinstance(result, list) else result
 
 
-def _completed_action_result(event, action_id):
-    if event and event["data"]["actionId"] == action_id:
-        return event["data"]["result"]
-    return None
+def name():
+    return _call("name")
 
 
-def _wait_for_last_action(timeout):
-    action_id = _robot.getLastActionId()
-    deadline = _deadline_from(timeout)
-
-    result = _robot.getActionResult(action_id)
-    while result and result == "INCOMPLETE":
-        if clock.expired(deadline):
-            return False
-        result = (_completed_action_result(
-            bus.wait_event(POLL_INTERVAL_MS, ACTION_COMPLETED_EVENT), action_id)
-            or _robot.getActionResult(action_id))
-
-    return result == "SUCCESS"
+def light_color(value=None):
+    return _call("getLightColor") if value is None else _call("setLightColor", value)
 
 
-def _queue_action(action, direction, timeout):
-    if not direction:
-        raise Exception("no direction specified")
-    deadline = _deadline_from(timeout)
-    while not action(direction):
-        if clock.expired(deadline):
-            return False
-        bus.wait_event(POLL_INTERVAL_MS, ACTION_COMPLETED_EVENT)
-    return True
+# Movement
+
+def forward():
+    return _call("move", FRONT)
 
 
-def detect(side):
-    if not side:
-        raise Exception("no side specified")
-    return _robot.detect(side)
+def back():
+    return _call("move", BACK)
 
 
-def energy():
-    return _robot.getEnergyStored()
+def up():
+    return _call("move", UP)
 
 
-def capacity():
-    return _robot.getEnergyCapacity()
+def down():
+    return _call("move", DOWN)
 
 
-def slot(value=None):
-    if value is not None:
-        _robot.setSelectedSlot(value)
-    return _robot.getSelectedSlot()
+def turn_left():
+    return _call("turn", False)
 
 
-def stack(slot=None):
-    if slot is None:
-        slot = _robot.getSelectedSlot()
-    return _robot.getStackInSlot(slot)
+def turn_right():
+    return _call("turn", True)
 
 
-def status_color(value=None):
-    if value is not None:
-        return _robot.setStatusColor(value)
-    return _robot.getStatusColor()
+def turn_around():
+    return turn_right() and turn_right()
 
 
-def status_value(value=None):
-    if value is not None:
-        return _robot.setStatusValue(value)
-    return _robot.getStatusValue()
+# World
+
+def detect(side=FRONT):
+    return _call("detect", side)
 
 
-def move(direction, timeout=None):
-    if not move_async(direction, timeout):
-        return False
-    return _wait_for_last_action(timeout)
+def compare(side=FRONT, fuzzy=False):
+    return _call("compare", side, fuzzy)
 
 
-def move_async(direction, timeout=None):
-    return _queue_action(_robot.move, direction, timeout)
+def swing(side=FRONT, face=None, sneaky=False):
+    return _call("swing", side, face, sneaky)
 
 
-def turn(direction, timeout=None):
-    if not turn_async(direction, timeout):
-        return False
-    return _wait_for_last_action(timeout)
+def use(side=FRONT, face=None, sneaky=False, duration=None):
+    return _call("use", side, face, sneaky, duration)
 
 
-def turn_async(direction, timeout=None):
-    return _queue_action(_robot.turn, direction, timeout)
+def place(side=FRONT, face=None, sneaky=False):
+    return _call("place", side, face, sneaky)
+
+
+def drop(side=FRONT, count=None):
+    return _call("drop", side, count)
+
+
+def suck(side=FRONT, count=None):
+    return _call("suck", side, count)
+
+
+def durability():
+    return _call("durability")
+
+
+# Inventory, slots counting from 1
+
+def inventory_size():
+    return _call("inventorySize")
+
+
+def select(slot=None):
+    return _call("select", slot)
+
+
+def count(slot=None):
+    return _call("count", slot)
+
+
+def space(slot=None):
+    return _call("space", slot)
+
+
+def compare_to(slot):
+    return _call("compareTo", slot)
+
+
+def transfer_to(slot, count=None):
+    return _call("transferTo", slot, count)
