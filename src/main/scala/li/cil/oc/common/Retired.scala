@@ -7,11 +7,13 @@ import net.minecraftforge.oredict.OreDictionary
 /**
  * Hardware is not tiered anymore: of each tiered item, only the best tier is made. The others are
  * retired: they have no recipe and are hidden, and the tier kept stands in for them in recipes
- * that still ask for them. RAM and hard drives stay, as sizes. Creative variants stay creative.
+ * that still ask for them. RAM and hard drives stay, as sizes. Creative variants stay creative,
+ * except the APU's, as there are no APUs anymore.
  */
 object Retired {
   /** Retired item to the one that replaces it. */
   val replacements: Map[String, String] = Map(
+    Constants.ItemName.APUCreative -> Constants.ItemName.CPUTier3,
     Constants.ItemName.APUTier1 -> Constants.ItemName.CPUTier3,
     Constants.ItemName.APUTier2 -> Constants.ItemName.CPUTier3,
     Constants.ItemName.CPUTier1 -> Constants.ItemName.CPUTier3,
