@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.time.Duration;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -54,6 +55,16 @@ public final class InternetConnection {
 
     boolean markShutdownQueued() {
         return shutdownQueued.compareAndSet(false, true);
+    }
+
+    boolean openInbound(final SocketChannel channel, final int guestAddress, final short guestPort) {
+        return !shutDown && !isStopped() && stack.openInbound(channel, guestAddress, guestPort);
+    }
+
+    void lookUpGuest(final int address) {
+        if (!shutDown) {
+            stack.lookUpGuest(address);
+        }
     }
 
     void exchangeFrames(final int byteBudget, final InternetManager.Budget shared) {

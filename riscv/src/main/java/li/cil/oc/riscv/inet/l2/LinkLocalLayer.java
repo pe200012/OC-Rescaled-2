@@ -26,12 +26,16 @@ public final class LinkLocalLayer {
     private static final short ARP_REPLY = 0x0002;
     private static final int MAX_GUESTS = 32;
     private static final int MAX_PENDING_ARP_REPLIES = 8;
+    private static final MacAddress BROADCAST_MAC = new MacAddress(BROADCAST_MAC_PREFIX, BROADCAST_MAC_ADDRESS);
+    // ponytail: the gateway the manual tells guests to use, until the guest asks for its own.
+    private static final int DEFAULT_GATEWAY_IP_ADDRESS = 0x0A000202;
 
     // --------------------------------------------------------------------- //
 
     private final NetworkLayer networkLayer;
     private final Map<Integer, MacAddress> guestMacAddresses = new LinkedHashMap<>();
     private final Deque<PendingArpReply> pendingArpReplies = new ArrayDeque<>();
+    private final Deque<Integer> pendingArpRequests = new ArrayDeque<>();
     private final MacAddress gatewayMacAddress = randomMacAddress();
     private int gatewayIpAddress;
     private boolean hasGatewayIpAddress;
@@ -52,12 +56,35 @@ public final class LinkLocalLayer {
         networkLayer.onStop();
     }
 
+    /**
+     * Opens a connection to the guest at the address, if it is on this link.
+     */
+    public boolean openInbound(final Object attachment, final int guestIpAddress, final short guestPort) {
+        return guestMacAddresses.containsKey(guestIpAddress)
+            && networkLayer.openInbound(attachment, guestIpAddress, guestPort, gatewayIpAddress());
+    }
+
+    /**
+     * Asks who on this link holds the address, so that {@link #openInbound} finds it next time.
+     */
+    public void lookUpGuest(final int ipAddress) {
+        if (pendingArpRequests.size() < MAX_PENDING_ARP_REPLIES) {
+            pendingArpRequests.addLast(ipAddress);
+        }
+    }
+
     public boolean receiveEthernetFrame(final ByteBuffer frame) {
         final int start = frame.position();
 
         final PendingArpReply reply = pendingArpReplies.pollFirst();
         if (reply != null) {
             writeArpReply(frame, start, reply);
+            return true;
+        }
+
+        final Integer wanted = pendingArpRequests.pollFirst();
+        if (wanted != null) {
+            writeArpRequest(frame, start, wanted);
             return true;
         }
 
@@ -139,7 +166,8 @@ public final class LinkLocalLayer {
         if (frame.getShort() != ARP_ADDRESS_SIZES) {
             return;
         }
-        if (frame.getShort() != ARP_REQUEST) {
+        final short operation = frame.getShort();
+        if (operation != ARP_REQUEST && operation != ARP_REPLY) {
             return;
         }
 
@@ -155,6 +183,12 @@ public final class LinkLocalLayer {
         final int targetIpAddress = frame.getInt();
 
         final MacAddress senderMac = new MacAddress(senderMacPrefix, senderMacAddress);
+
+        if (operation == ARP_REPLY) {
+            // The guest answering our lookUpGuest.
+            learnGuest(senderIpAddress, senderMac);
+            return;
+        }
 
         if (senderIpAddress == 0) {
             // An ARP probe: the sender holds no address yet and is testing whether one is free.
@@ -227,6 +261,26 @@ public final class LinkLocalLayer {
         frame.putInt(reply.requesterIpAddress());
         frame.limit(frame.position());
         frame.position(start);
+    }
+
+    private void writeArpRequest(final ByteBuffer frame, final int start, final int targetIpAddress) {
+        writeEthernetHeader(frame, start, BROADCAST_MAC, PROTOCOL_ARP);
+        frame.position(start + FRAME_HEADER_SIZE);
+        frame.putInt(ARP_ADDRESS_TYPE);
+        frame.putShort(ARP_ADDRESS_SIZES);
+        frame.putShort(ARP_REQUEST);
+        frame.putShort(gatewayMacAddress.prefix());
+        frame.putInt(gatewayMacAddress.address());
+        frame.putInt(gatewayIpAddress());
+        frame.putShort((short) 0);
+        frame.putInt(0);
+        frame.putInt(targetIpAddress);
+        frame.limit(frame.position());
+        frame.position(start);
+    }
+
+    private int gatewayIpAddress() {
+        return hasGatewayIpAddress ? gatewayIpAddress : DEFAULT_GATEWAY_IP_ADDRESS;
     }
 
     private void writeEthernetHeader(final ByteBuffer frame, final int start,

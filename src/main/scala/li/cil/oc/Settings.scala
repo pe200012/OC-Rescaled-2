@@ -317,6 +317,7 @@ class Settings(val config: Config) {
   val httpTimeout = (config.getInt("internet.requestTimeout") max 0) * 1000
   val maxConnections = config.getInt("internet.maxTcpConnections") max 0
   val internetThreads = config.getInt("internet.threads") max 1
+  val internetForwardedPorts = config.getStringList("internet.forwardedPorts")
 
   // ----------------------------------------------------------------------- //
   // switch

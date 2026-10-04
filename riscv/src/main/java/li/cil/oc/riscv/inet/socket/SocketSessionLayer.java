@@ -294,7 +294,11 @@ public final class SocketSessionLayer implements SessionLayer {
         try {
             switch (stream.getState()) {
                 case NEW -> {
-                    if (stream.attachment() == null) {
+                    if (stream.isInbound()) {
+                        if (openSessions.add(stream)) {
+                            socketManager.register((SocketChannel) stream.attachment(), stream, ready);
+                        }
+                    } else if (stream.attachment() == null) {
                         final SocketChannel channel = socketManager.openSocketChannel(stream, ready);
                         stream.attach(channel);
                         openSessions.add(stream);

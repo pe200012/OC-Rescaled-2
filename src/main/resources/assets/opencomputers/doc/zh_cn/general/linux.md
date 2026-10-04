@@ -33,7 +33,9 @@ Linux运行时可以插入和取出[软盘](../item/floppy.md)，取出前请先
 `ip link set eth1 up`
 `ip route add default via 10.0.2.2`
 `echo nameserver 1.1.1.1 > /etc/resolv.conf`
-之后`wget`和`ssh`就能访问真实的互联网了。只能向外发起连接。
+之后`wget`和`ssh`就能访问真实的互联网了。只能向外发起连接，只有一个例外：运行游戏（或游戏服务器）的那台真实电脑，可以连到模组配置所转发的端口（配置中`internet`一节的`forwardedPorts`）。在那里填上`"2222:10.0.2.15:22"`后，启动SSH服务端
+`/etc/init.d/dropbear start`
+就能在游戏外用`ssh -p 2222 root@localhost`登录；`scp`和`sshfs`也能用。把脚本改名为`/etc/init.d/S50dropbear`，它就会在每次开机时启动。此后任何能通过网络连到这台机器的人都能以`root`登录，除非你用`passwd`给它设一个密码。
 
 ## 保存与停止
 

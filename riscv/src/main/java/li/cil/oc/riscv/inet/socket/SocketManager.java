@@ -8,9 +8,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.channels.*;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public final class SocketManager implements AutoCloseable {
     public static final class ReadySessions {
@@ -53,6 +55,12 @@ public final class SocketManager implements AutoCloseable {
     public void poll() {
         try {
             selector.selectNow(key -> {
+                if (key.attachment() instanceof final Listener listener) {
+                    if (key.isValid() && key.isAcceptable()) {
+                        accept((ServerSocketChannel) key.channel(), listener);
+                    }
+                    return;
+                }
                 final Registration registration = (Registration) key.attachment();
                 if (key.isValid() && key.isConnectable()) {
                     registration.ready().toConnect().add(registration.session());
@@ -85,6 +93,29 @@ public final class SocketManager implements AutoCloseable {
         return channel;
     }
 
+    /**
+     * Listens on the address, handing every connection made to it to the callback, unregistered.
+     */
+    public void listen(final InetSocketAddress address, final Consumer<SocketChannel> onAccept) throws IOException {
+        final ServerSocketChannel channel = ServerSocketChannel.open();
+        try {
+            channel.configureBlocking(false);
+            channel.bind(address);
+            channel.register(selector, SelectionKey.OP_ACCEPT, new Listener(onAccept));
+        } catch (final IOException | RuntimeException e) {
+            closeQuietly(channel);
+            throw e;
+        }
+    }
+
+    /**
+     * Reports when a connection handed out by {@link #listen} has something to read.
+     */
+    public void register(final SocketChannel channel, final AbstractSession session, final ReadySessions ready) throws IOException {
+        channel.configureBlocking(false);
+        channel.register(selector, SelectionKey.OP_READ, new Registration(session, ready));
+    }
+
     public SocketChannel openSocketChannel(final AbstractSession session, final ReadySessions ready) throws IOException {
         final SocketChannel channel = SocketChannel.open();
         try {
@@ -113,6 +144,17 @@ public final class SocketManager implements AutoCloseable {
 
     // --------------------------------------------------------------------- //
 
+    private static void accept(final ServerSocketChannel server, final Listener listener) {
+        try {
+            SocketChannel channel;
+            while ((channel = server.accept()) != null) {
+                listener.onAccept().accept(channel);
+            }
+        } catch (final IOException e) {
+            LOGGER.warn("Failed to accept a connection on {}.", server, e);
+        }
+    }
+
     private static void closeQuietly(final Channel channel) {
         try {
             channel.close();
@@ -124,5 +166,8 @@ public final class SocketManager implements AutoCloseable {
     // --------------------------------------------------------------------- //
 
     private record Registration(AbstractSession session, ReadySessions ready) {
+    }
+
+    private record Listener(Consumer<SocketChannel> onAccept) {
     }
 }

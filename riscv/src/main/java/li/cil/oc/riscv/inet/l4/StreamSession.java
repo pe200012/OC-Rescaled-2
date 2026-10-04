@@ -33,7 +33,8 @@ public final class StreamSession extends AbstractSession {
     private final TcpConfig config;
     private final ByteBuffer toGuest;
     private final ByteBuffer toRemote;
-    private TcpState state = TcpState.SYN_RECEIVED;
+    private final boolean inbound;
+    private TcpState state;
 
     // Send side: internet -> virtual machine.
     private final int initialSendSequence;
@@ -80,9 +81,18 @@ public final class StreamSession extends AbstractSession {
     // --------------------------------------------------------------------- //
 
     public StreamSession(final SessionKey.Stream key, final TcpConfig config) {
+        this(key, config, false);
+    }
+
+    /**
+     * @param inbound whether we open the connection to the guest, rather than the guest to us.
+     */
+    public StreamSession(final SessionKey.Stream key, final TcpConfig config, final boolean inbound) {
         super(key.destinationIpAddress(), key.destinationPort());
         this.key = key;
         this.config = config;
+        this.inbound = inbound;
+        this.state = inbound ? TcpState.SYN_SENT : TcpState.SYN_RECEIVED;
         this.toGuest = ByteBuffer.allocate(config.bufferSize());
         this.toRemote = ByteBuffer.allocate(config.bufferSize());
         this.toRemote.limit(0);
@@ -114,6 +124,10 @@ public final class StreamSession extends AbstractSession {
         return toGuest;
     }
 
+    public boolean isInbound() {
+        return inbound;
+    }
+
     public void connect() {
         if (state != TcpState.SYN_RECEIVED) {
             return;
@@ -129,7 +143,7 @@ public final class StreamSession extends AbstractSession {
     @Override
     public void close() {
         switch (state) {
-            case SYN_RECEIVED -> {
+            case SYN_RECEIVED, SYN_SENT -> {
                 resetDue = true;
                 state = TcpState.CLOSED;
             }
@@ -168,11 +182,20 @@ public final class StreamSession extends AbstractSession {
             onSegmentInSynReceived(header);
             return;
         }
+        if (state == TcpState.SYN_SENT) {
+            onSegmentInSynSent(header);
+            return;
+        }
         if (state == TcpState.CLOSED || state == TcpState.EXPIRED) {
             return;
         }
 
         if (header.syn) {
+            if (inbound && header.ack && header.sequenceNumber + 1 == receiveNext) {
+                // The guest repeats its SYN-ACK, so our acknowledgment got lost. Say it again.
+                ackDue = true;
+                return;
+            }
             // A SYN on a live connection means the peer lost its state. Tear ours down too.
             resetDue = true;
             state = TcpState.CLOSED;
@@ -210,6 +233,9 @@ public final class StreamSession extends AbstractSession {
         if (state == TcpState.SYN_RECEIVED) {
             return socketConnected && isSynAckDue(now);
         }
+        if (state == TcpState.SYN_SENT) {
+            return isSynAckDue(now);
+        }
         if (state == TcpState.CLOSED) {
             return false;
         }
@@ -242,7 +268,11 @@ public final class StreamSession extends AbstractSession {
             if (!socketConnected || !isSynAckDue(now)) {
                 return false;
             }
-            return writeSynAck(header, segment, now);
+            return writeSyn(header, segment, now);
+        }
+
+        if (state == TcpState.SYN_SENT) {
+            return isSynAckDue(now) && writeSyn(header, segment, now);
         }
 
         if (isRetransmitDue(now)) {
@@ -324,6 +354,25 @@ public final class StreamSession extends AbstractSession {
             sampleRoundTrip(header.acknowledgmentNumber);
             updateSendWindow(header);
         }
+    }
+
+    private void onSegmentInSynSent(final TcpHeader header) {
+        if (!header.syn || !header.ack || header.acknowledgmentNumber != initialSendSequence + 1) {
+            return;
+        }
+        receiveNext = header.sequenceNumber + 1;
+        if (header.maxSegmentSize > 0) {
+            peerMaxSegmentSize = Math.clamp(header.maxSegmentSize, MIN_PEER_MAX_SEGMENT_SIZE, DEFAULT_MAX_SEGMENT_SIZE);
+        }
+        synAcked = true;
+        sendUnacknowledged = initialSendSequence + 1;
+        sendWindow = header.window;
+        sendWindowUpdateSequence = header.sequenceNumber;
+        sendWindowUpdateAcknowledgment = header.acknowledgmentNumber;
+        state = TcpState.ESTABLISHED;
+        ackDue = true;
+        clearRetransmitTimer();
+        sampleRoundTrip(header.acknowledgmentNumber);
     }
 
     private boolean processAcknowledgment(final TcpHeader header) {
@@ -451,11 +500,14 @@ public final class StreamSession extends AbstractSession {
         payload.limit(oldLimit);
     }
 
-    private boolean writeSynAck(final TcpHeader header, final ByteBuffer segment, final long now) {
+    /**
+     * Writes our SYN: on its own when we open the connection, else answering the guest's.
+     */
+    private boolean writeSyn(final TcpHeader header, final ByteBuffer segment, final long now) {
         header.syn = true;
-        header.ack = true;
+        header.ack = !inbound;
         header.sequenceNumber = initialSendSequence;
-        header.acknowledgmentNumber = receiveNext;
+        header.acknowledgmentNumber = inbound ? 0 : receiveNext;
         header.window = advertiseWindow();
         header.maxSegmentSize = DEFAULT_MAX_SEGMENT_SIZE;
         header.write(segment);
@@ -621,6 +673,7 @@ public final class StreamSession extends AbstractSession {
 
     private enum TcpState {
         SYN_RECEIVED(SessionState.NEW),
+        SYN_SENT(SessionState.NEW),
         ESTABLISHED(SessionState.ESTABLISHED),
         FIN_WAIT_1(SessionState.ESTABLISHED),
         FIN_WAIT_2(SessionState.ESTABLISHED),

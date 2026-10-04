@@ -33,7 +33,9 @@ Eine [Internetkarte](../item/internetCard.md) ist die nächste Schnittstelle nac
 `ip link set eth1 up`
 `ip route add default via 10.0.2.2`
 `echo nameserver 1.1.1.1 > /etc/resolv.conf`
-Danach erreichen `wget` und `ssh` das echte Internet. Verbindungen können nur nach außen aufgebaut werden.
+Danach erreichen `wget` und `ssh` das echte Internet. Verbindungen können nur nach außen aufgebaut werden, mit einer Ausnahme: Der echte Rechner, auf dem das Spiel oder sein Server läuft, erreicht einen Port, den die Konfiguration der Mod weiterleitet (`forwardedPorts` im Abschnitt `internet`). Steht dort `"2222:10.0.2.15:22"`, starte den SSH-Server
+`/etc/init.d/dropbear start`
+und melde dich von außerhalb des Spiels mit `ssh -p 2222 root@localhost` an; `scp` und `sshfs` funktionieren auch. Umbenannt in `/etc/init.d/S50dropbear` startet das Skript bei jedem Hochfahren. Danach kann sich jeder, der die Maschine über ein Netzwerk erreicht, als `root` anmelden, es sei denn, du gibst ihr mit `passwd` ein Passwort.
 
 ## Speichern und Beenden
 

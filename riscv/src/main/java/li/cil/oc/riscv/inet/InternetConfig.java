@@ -49,6 +49,13 @@ public final class InternetConfig {
         "11211"
     ));
 
+    /**
+     * Connections to 127.0.0.1 on this server's machine that are passed on to computers, as
+     * "hostPort:guestAddress:guestPort": "2222:10.0.2.15:22" lets ssh on port 2222 reach the
+     * computer whose internet card has the address 10.0.2.15.
+     */
+    public static List<String> internetForwards = new ArrayList<>();
+
     public static int internetSessionsTotal = 128;
     public static int internetBytesPerSecond = 64 * 1024;
     public static int internetBytesPerSecondTotal = 512 * 1024;

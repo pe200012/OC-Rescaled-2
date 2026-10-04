@@ -25,6 +25,7 @@ public final class TransportLayer {
     private static final int REPLY_HEADER_SIZE = 8;
     private static final int MAX_PENDING_RESETS = 8;
     private static final long EXPIRY_SWEEP_INTERVAL_NANOS = 50_000_000L;
+    private static final int INBOUND_PORT_BASE = 49152;
 
     // --------------------------------------------------------------------- //
 
@@ -40,6 +41,7 @@ public final class TransportLayer {
     private final SessionReceiver receiver = new SessionReceiver();
     private final TcpHeader header = new TcpHeader();
     private long lastExpirySweep;
+    private int nextInboundPort;
 
     // --------------------------------------------------------------------- //
 
@@ -78,8 +80,51 @@ public final class TransportLayer {
         sessionLayer.onStop();
     }
 
-    public void sendTransportMessage(final byte protocol, final TransportMessage message) {
+    /**
+     * Opens a connection from the gateway to the guest, for a connection made to us from outside.
+     *
+     * @param attachment  the session layer's end of the connection.
+     * @param peerAddress the address the connection appears to come from.
+     */
+    public boolean openInbound(final Object attachment, final int guestAddress, final short guestPort, final int peerAddress) {
+        final short peerPort = (short) (INBOUND_PORT_BASE + (nextInboundPort++ & 0x3FFF));
+        final SessionKey.Stream key = new SessionKey.Stream(guestAddress, guestPort, peerAddress, peerPort);
+        if (sessions.containsKey(key)) {
+            return false;
+        }
+        final StreamSession session = getOrCreateSession(key, it -> new StreamSession(it, tcpConfig, true));
+        if (session == null) {
+            return false;
+        }
+        session.attach(attachment);
+        sessionLayer.sendSession(session, null);
+        return true;
+    }
+
+    /**
+     * Whether a connection from outside appears to come from this address. The guest may answer
+     * it even where it may not open connections of its own.
+     */
+    public boolean isInboundPeer(final int address) {
+        for (final AbstractSession session : sessions.values()) {
+            if (session instanceof final StreamSession stream && stream.isInbound()
+                && stream.getKey().destinationIpAddress() == address) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param mayConnect whether the guest may open new sessions to the destination, or only
+     *                   answer connections from outside.
+     */
+    public void sendTransportMessage(final byte protocol, final TransportMessage message, final boolean mayConnect) {
         expireIdleSessions();
+
+        if (!mayConnect && protocol != PROTOCOL_TCP) {
+            return;
+        }
 
         final int sourceIpAddress = message.getSourceIpv4Address();
         final int destinationIpAddress = message.getDestinationIpv4Address();
@@ -88,7 +133,7 @@ public final class TransportLayer {
         switch (protocol) {
             case PROTOCOL_ICMP -> sendIcmp(data, sourceIpAddress, destinationIpAddress);
             case PROTOCOL_UDP -> sendUdp(data, sourceIpAddress, destinationIpAddress);
-            case PROTOCOL_TCP -> sendTcp(data, sourceIpAddress, destinationIpAddress);
+            case PROTOCOL_TCP -> sendTcp(data, sourceIpAddress, destinationIpAddress, mayConnect);
             default -> {
             }
         }
@@ -171,7 +216,7 @@ public final class TransportLayer {
         afterSend(session);
     }
 
-    private void sendTcp(final ByteBuffer data, final int sourceIpAddress, final int destinationIpAddress) {
+    private void sendTcp(final ByteBuffer data, final int sourceIpAddress, final int destinationIpAddress, final boolean mayConnect) {
         if (data.remaining() < TcpHeader.MIN_HEADER_SIZE) {
             return;
         }
@@ -183,11 +228,6 @@ public final class TransportLayer {
             return;
         }
 
-        if (!portFilter.isAllowed(destinationPort)) {
-            queueReset(new SessionKey.Stream(sourceIpAddress, sourcePort, destinationIpAddress, destinationPort), header);
-            return;
-        }
-
         final SessionKey.Stream key = new SessionKey.Stream(sourceIpAddress, sourcePort, destinationIpAddress, destinationPort);
         StreamSession session = (StreamSession) sessions.get(key);
 
@@ -195,7 +235,7 @@ public final class TransportLayer {
             if (header.rst) {
                 return;
             }
-            if (!header.syn) {
+            if (!header.syn || !mayConnect || !portFilter.isAllowed(destinationPort)) {
                 queueReset(key, header);
                 return;
             }

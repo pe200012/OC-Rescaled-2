@@ -55,6 +55,10 @@ public final class NetworkLayer {
         transportLayer.onStop();
     }
 
+    public boolean openInbound(final Object attachment, final int guestAddress, final short guestPort, final int peerAddress) {
+        return transportLayer.openInbound(attachment, guestAddress, guestPort, peerAddress);
+    }
+
     public short receivePacket(final ByteBuffer packet) {
         final int start = packet.position();
 
@@ -127,7 +131,8 @@ public final class NetworkLayer {
             return;
         }
 
-        if (!addressFilter.isAllowed(destinationIpAddress)) {
+        final boolean mayConnect = addressFilter.isAllowed(destinationIpAddress);
+        if (!mayConnect && !transportLayer.isInboundPeer(destinationIpAddress)) {
             if (!isUnicast(destinationIpAddress)) {
                 // Broadcasts and multicasts are the guests talking among themselves, and RFC 1122
                 // forbids answering them with errors anyway.
@@ -144,7 +149,7 @@ public final class NetworkLayer {
 
         outMessage.initializeBuffer(packet);
         outMessage.updateIpv4(sourceIpAddress, destinationIpAddress, (byte) (timeToLive - 1));
-        transportLayer.sendTransportMessage(transportProtocol, outMessage);
+        transportLayer.sendTransportMessage(transportProtocol, outMessage, mayConnect);
     }
 
     // --------------------------------------------------------------------- //

@@ -62,6 +62,7 @@ object OpenComputers {
 
     // Internet access for RISC-V machines, under the same switch as TCP for internet cards.
     InternetConfig.internetEnabled = Settings.get.tcpEnabled
+    InternetConfig.internetForwards = Settings.get.internetForwardedPorts
     InternetManager.start()
 
     if (Settings.get.internetAccessConfigured()) {
