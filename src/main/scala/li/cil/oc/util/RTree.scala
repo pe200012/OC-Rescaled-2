@@ -118,9 +118,9 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
       }
     }
 
-    def remove(value: Node): Option[Node] = {
+    // The boundary takes the whole body, so what is broken out with is returned, not dropped.
+    def remove(value: Node): Option[Node] = boundary {
       if (bounds.intersects(value.bounds))
-        boundary:
           for (child <- children) {
           child.remove(value) match {
             case Some(change) =>
