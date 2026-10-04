@@ -2,7 +2,7 @@
 
 ![Going round and round and...](oredict:oc:diskDrive)
 
-The disk drive can be used to read [floppy disks](../item/floppy.md) using a [computer](../general/computer.md) connected to the disk drive. This is useful to get started, since the lower tier [computer cases](case1.md) do not have a built-in floppy slot, and you'll need an operating system to boot up the [computer](../general/computer.md). An [OpenOS](../general/openOS.md) disk can be crafted using an empty [floppy disk](../item/floppy.md) and a [manual](../item/manual.md).
+The disk drive can be used to read [floppy disks](../item/floppy.md) using a [computer](../general/computer.md) connected to the disk drive. A floppy is a raw 512 KB disk in [Linux](../general/linux.md). Each disk drive the machine can see (up to 4) is a drive, numbered after the hard drives. Format a floppy with `mke2fs`, then `mount` it. Floppies can be inserted and removed while the machine runs, but a newly connected disk drive needs a reboot.
 
 It can also be installed in [robots](robot.md) to allow inserting [floppy disks](../item/floppy.md) into the [robot](robot.md). This can be very useful since the only other way to transfer data to and from a robot is using networking - for example using [network cards](../item/lanCard.md).
 

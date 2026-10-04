@@ -2,30 +2,17 @@
 
 ![So niedlich!](oredict:oc:microcontrollerCase1)
 
-Das Mikrocontroller-Gehäuse ist das grundlegende Teil zum Bau von [Mikrocontrollern](../block/microcontroller.md) in der [Elektronik-Werkbank](../block/assembler.md). Mikrocontroller sind sehr primitive [Computer](../general/computer.md). Sie können nur eine bestimmte Anzahl an Komponenten enthalten und sind für sehr spezifische Anwendungsfälle gedacht, wie das Reagieren auf Redstonesignale, oder das Verarbeiten von Netzwerknachrichten.
+Das Mikrocontroller-Gehäuse ist das grundlegende Teil zum Bau von [Mikrocontrollern](../block/microcontroller.md) in der [Elektronik-Werkbank](../block/assembler.md). [Mikrocontroller](../block/microcontroller.md) sind sehr primitive [Computer](../general/computer.md). Sie können nur eine sehr begrenzte Anzahl an Komponenten enthalten und sind für sehr spezifische Anwendungsfälle gedacht, wie das Umwandeln von oder Reagieren auf Redstonesignale oder das Verarbeiten von Netzwerknachrichten.
 
-Sie haben kein richtiges Dateisystem und alle Programme müssen auf dem [EEPROM](eeprom.md) geschrieben werden. Dieser Chip kann ausgetauscht werden, indem der Microcontroller mit einem anderen EEPROM in die Werkbank gelegt wird. Dabei wird das der alte EEPROM zurückgegeben.
+Sie haben keine Festplatte und führen kein Linux aus. Sie führen ein Bare-Metal-Programm aus dem in sie eingebauten [EEPROM](eeprom.md)-Chip aus. Dieser Chip kann ausgetauscht werden, indem ein [Mikrocontroller](../block/microcontroller.md) mit dem einzusetzenden Chip gecraftet wird. Das alte [EEPROM](eeprom.md) wird dabei in dein Inventar zurückgegeben.
 
-Sie benötigen nur sehr wenig Energie.
+Sie benötigen zwar ebenfalls Energie zum Laufen, verbrauchen aber nur sehr wenig.
 
-Das Stufe-1-Mikrocontroller-Gehäuse kann folgende Komponenten halten:
-- 1x Stufe-1-[CPU](cpu1.md)
-- 1x Stufe-1-[RAM](ram1.md)
+Es gibt nur eine Art von Mikrocontroller-Gehäuse (plus eine Kreativ-Variante). Es kann folgende Komponenten aufnehmen:
+- 1x [CPU](cpu1.md)
+- [RAM](ram1.md)
 - 1x [EEPROM](eeprom.md)
-- 2x Stufe-1-Erweiterungskarten
-- 1x Stufe-2-Upgrade
+- Erweiterungskarten
+- Upgrades
 
-Stufe-2-Mikrocontroller können diese Komponenten haben:
-- 1x Stufe-1-[CPU](cpu1.md)
-- 2x Stufe-1-[RAM](ram1.md)
-- 1x [EEPROM](eeprom.md)
-- 1x Stufe-2-Erweiterungskarte
-- 1x Stufe-1-Erweiterungskarte
-- 1x Stufe-3-Upgrade
-
-Mikrocontrollergehäuse der Stufe 3 bieten Platz für diese Komponenten:
-- 1x Stufe-3-[CPU](cpu3.md)
-- 2x Stufe-3-[RAM](ram5.md)
-- 1x [EEPROM](eeprom.md)
-- 3x Stufe-3-Erweiterungskarte
-- 9x Stufe-3-Upgrades
+Jeder Slot nimmt Gegenstände jeder Stufe auf.

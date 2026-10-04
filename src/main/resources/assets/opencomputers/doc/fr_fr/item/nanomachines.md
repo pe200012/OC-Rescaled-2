@@ -27,7 +27,10 @@ Les nanomachines réagissent à un protocole propriétaire très simple : chaque
 - `getInput(index:number)` - Demande l'état actuel de l'entrée avec l'index en paramètre.
 - `setInput(index:number, value:boolean)` - Affecte l'état de l'entrée avec en paramètres l'index et l'état.
 - `getActiveEffects()` - Demande une liste des effets actifs. Remarquez que certains effets pourraient ne pas s'afficher dans la liste.
+- `saveConfiguration()` - Nécessite un jeu de nanomachines dans l'inventaire du joueur, et y enregistrera la configuration actuelle.
 
-Par exemple, dans OpenOS :
-- `component.modem.broadcast(1, "nanomachines", "setInput", 1, true)` activera la première entrée.
-- `component.modem.broadcast(1, "nanomachines", "getHealth")` renverra l'information sur la santé du joueur.
+Par exemple, en micropython sur une machine Linux avec une carte de réseau sans-fil :
+- `bus.find("modem").broadcast(1, "nanomachines", "setInput", 1, True)` activera la première entrée.
+- `bus.find("modem").broadcast(1, "nanomachines", "getHealth")` renverra l'information sur la santé du joueur.
+
+(Les deux lignes supposent d'abord `from devices import bus`.)

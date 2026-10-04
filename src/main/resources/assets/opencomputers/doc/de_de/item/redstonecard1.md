@@ -2,8 +2,13 @@
 
 ![Sieht rot.](oredict:oc:redstoneCard1)
 
-Die Redstonekarte ermöglicht [Computern](../general/computer.md) das Lesen und Senden von analogen Redstonesignalen zu benachbarten Blöcken. Wenn sich ein eingehendes Signal ändert wird dies dem Computer gemeldet.
+Die Redstonekarte ermöglicht [Computern](../general/computer.md) das Lesen und Senden von analogen Redstonesignalen in benachbarten Blöcken. Wenn sich die Stärke eines eingehenden Signals ändert, wird ein Ereignis in den [Computer](../general/computer.md) eingespeist. Programme nutzen die Karte über den Gerätebus:
 
-Wenn unterstützte Mods vorhanden sind, die gebündelte Redstone-Anbindungen (wie RedLogic, Project Red oder MineFactory Reloaded) oder kabellose Redstone-Anbindungen (wie WR-CBE oder Slimevoid's Wireless Mod) zur Verfügung stellen ist eine Stufe-2-Karte verfügbar, die die Kommunikation mit diesen Systemen ermöglicht.
+`from devices import bus`
+`rs = bus.find("redstone")`
+`rs.setOutput(1, 15)`
+`e = bus.wait_event(5000)`
 
-Die Seiten sind aus Sicht des Gerätes (also dem [Computergehäuse](../block/case1.md) / [Roboter](../block/robot.md) / [Serverschrank](../block/serverRack.md)) zu sehen. Mit Blick auf die Vorderseite ist `sides.right` also auf der linken Seite und andersrum.
+Wenn unterstützte Mods vorhanden sind, die gebündelte Redstone-Anbindungen (wie RedLogic, Project Red oder MineFactory Reloaded) oder kabellose Redstone-Anbindungen (wie WR-CBE oder Slimevoids Wireless Mod) zur Verfügung stellen, ermöglicht die Karte auch die Interaktion mit diesen Systemen.
+
+Die den verschiedenen Methoden übergebenen Seiten sind aus Sicht des [Computergehäuses](../block/case1.md) / [Roboters](../block/robot.md) / [Serverschranks](../block/rack.md) zu sehen. Mit Blick auf die Vorderseite des Computers ist die rechte Seite also auf der linken Seite und andersrum.

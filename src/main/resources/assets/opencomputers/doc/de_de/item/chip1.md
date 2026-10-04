@@ -2,4 +2,4 @@
 
 ![Nicht essbar.](oredict:oc:circuitChip1)
 
-Microchips sind die Grundlage für das Bauen von elektronischen Komponenten. Sie kommen in verschiedenen Stufen und ermöglichen unterschiedliche Komponentenstufen.
+Microchips sind die Grundlage für das Bauen von elektronischen Komponenten. Es gibt nur eine Sorte von Microchip, und alle Rezepte verwenden ihn.

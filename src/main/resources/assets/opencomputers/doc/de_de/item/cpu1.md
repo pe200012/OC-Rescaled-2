@@ -2,13 +2,8 @@
 
 ![Gehirrrrrn.](oredict:oc:cpu1)
 
-Die zentrale Recheneinheit ist das Herz eines jeden [Computers](../general/computer.md) oder [Servers](server1.md). Sie definiert die Architektur des Gerätes und die Anzahl der Komponenten die maximal mit dem Gerät verbunden werden können bevor er zu funktionieren aufhört. Hochstufige CPUs ermöglich außerdem eine schnellere Ausführung.
+Die zentrale Recheneinheit ist das Herz eines jeden [Computers](../general/computer.md) oder [Servers](server1.md). Sie ist ein 64-Bit-RISC-V-Prozessor, der Linux oder Bare-Metal-Programme ausführt.
 
-Das Limit an Komponenten ist wie folgt:
-- Stufe 1: 8 Komponenten.
-- Stufe 2: 12 Komponenten.
-- Stufe 3: 16 Komponenten.
+Es gibt nur eine Sorte CPU. Ihre Taktrate kann 25, 50, 100 oder 200 MHz betragen. Das CPU-Item bei gedrückter Schleichtaste benutzen, um zwischen ihnen zu wechseln. Neue CPUs laufen mit 50 MHz. Höhere Taktraten führen Programme schneller aus, verbrauchen aber mehr Energie.
 
-In [Servern](server1.md) kann die maximale Anzahl an Komponenten zudem mit [Komponentenschnittstellen](componentBus1.md) erhöht werden.
-
-Wenn mehr als die maximale Anzahl an Komponenten mit dem Prozessor verbunden sind, wird er nicht mehr starten oder abstürzen, wenn er läuft.
+Die CPU unterstützt bis zu 16 Komponenten. In [Servern](server1.md) kann dieses Limit mit [Komponentenschnittstellen](componentBus1.md) weiter erhöht werden. Wenn mehr Komponenten mit einem [Computer](../general/computer.md) verbunden sind, kann er nicht mehr starten, und wenn er lief, stürzt er ab.

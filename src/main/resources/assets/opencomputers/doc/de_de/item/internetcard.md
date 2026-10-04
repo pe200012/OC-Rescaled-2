@@ -1,7 +1,7 @@
 # Internetkarte
 
-![Katzenvideos in 3, 2,....](oredict:oc:internetCard)
+![Katzenvideos in 3, 2, ...](oredict:oc:internetCard)
 
-Internetkarten bieten [Computern](../general/computer.md) Internetzugriff. Einfache HTTP-Anfragen sind möglich, sowie einfache TCP-Client-Sockets die gelesen und beschrieben werden können.
+Die Internetkarte gibt [Computern](../general/computer.md) Zugriff auf das Internet. Unter Linux ist sie eine Ethernet-Schnittstelle, und zwar die nächste nach den Netzwerkkarten. Sie arbeitet als NAT-Gateway: Gib der Maschine eine Adresse und eine Standardroute und trage einen DNS-Server in `/etc/resolv.conf` ein. Ausgehendes TCP, UDP und Ping funktionieren, sodass Werkzeuge wie `wget` und `ssh` nach außen gelangen können. Eingehende Verbindungen funktionieren nicht.
 
-Eine Internetkarte zu installieren fügt zudem einen Speicher hinzu, auf dem einige Internetprogramme installiert sind, wie das hoch- und herunterladen von Text zu/von pastebin sowie ein `wget`-Klon zum herunterladen von Dateien aus dem Internet.
+Der Internetzugriff kann in der Konfiguration abgeschaltet werden (`internet.enableTcp`).

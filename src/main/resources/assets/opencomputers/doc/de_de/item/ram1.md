@@ -1,17 +1,17 @@
-# Speicher (RAM)
+# Speicher
 
 ![Do you remember, dancing in September~](oredict:oc:ram1)
 
-Der Random Access Memory ist, wie die [CPU](cpu1.md) ein grundlegendes Teil in allen [Computern](../general/computer.md). Je nach der Architektur der CPU hat der RAM einen großen Effekt darauf, was ein Computer kann und was er nicht kann. In der standardmäßigen LUA-Architektur kontrolliert es die tatsächliche Menge von Memory die LUA-Scripts verwenden können. Um größere und speicherintensivere Programme zu schreiben wird mehr Speicher verwendet.
+Speicher ist, wie die [CPU](cpu1.md), ein grundlegendes Teil in allen [Computern](../general/computer.md). Der Speicher bestimmt, wie groß die Programme sein können, die ein [Computer](../general/computer.md) ausführt. Linux benötigt mindestens 8 MB zum Starten, 16 MB sind komfortabel. Bare-Metal-Programme laufen mit jeder Menge.
 
-Der RAM ist verfügbar in verschiedenen Stufen mit unterschiedlichen Kapazitäten.
-- Stufe 1: 192KB
-- Stufe 1.5: 256KB 
-- Stufe 2: 384KB
-- Stufe 2.5: 512KB
-- Stufe 3: 768KB
-- Stufe 3.5: 1024KB
+Speicher gibt es in folgenden Größen:
+- 1 MB
+- 2 MB
+- 4 MB
+- 8 MB
+- 16 MB
+- 32 MB
 
-Dies trifft allerdings nur für die LUA-Architektur. Andere Architekturen stellen unterschiedliche Mengen an Speicher zur Verfügung. Zudem werden Stufe-1- und Stufe-1.5-Speicherriegel als Stufe-1-Riegel gehandhabt werden, wie es auch bei 2 und 3 der Fall ist.
+Die Riegel sind nach ihrer Größe benannt, zum Beispiel "Speicher (16MB)". Zwei Riegel einer Größe können zu einem Riegel der nächsten Größe gecraftet werden. Alle installierten Riegel addieren sich. Jedes MB Speicher erhöht außerdem die Energie, die eine Maschine verbraucht.
 
-Die Werte können in der Konfigurationsdatei geändert werden.
+Das Ändern des Speichers erfordert einen Neustart der Maschine.

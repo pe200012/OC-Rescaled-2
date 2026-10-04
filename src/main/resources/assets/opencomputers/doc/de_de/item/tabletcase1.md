@@ -2,38 +2,19 @@
 
 ![Verbiegt sich nicht.](oredict:oc:tabletCase1)
 
-Das Tabletgehäuse ist das grundlegende Teil um [Tablets](tablet.md) in der [Elektronik-Werkbank](../block/assembler.md) zu bauen. Tablets sind sehr kompakte, tragbare [Computer](../general/computer.md). Sie können eine kleine Nummer von ausgewählten Upgrades halten und nicht mit der Welt interagieren (wie [Computergehäuse](../block/case1.md) mit [Netzwerkkarten](lanCard.md) oder [Redstonekarten](redstoneCard1.md) es können).
+Das Tabletgehäuse ist das grundlegende Teil zum Bau von [Tablets](tablet.md) in der [Elektronik-Werkbank](../block/assembler.md). [Tablets](tablet.md) sind sehr kompakte, tragbare [Computer](../general/computer.md), die Linux ausführen. Sie können eine kleine Anzahl ausgewählter Upgrades aufnehmen, aber nicht wie [Computergehäuse](../block/case1.md) mit der Welt interagieren (zum Beispiel mit einfachen [Netzwerkkarten](lanCard.md) oder [Redstonekarten](redstoneCard1.md)).
 
-Upgrades und Karten die nicht in [Tablets](tablet.md) verwendet werden können, können nicht in der [Elektronik-Werkbank](../block/assembler.md) platziert werden. Wenn das Upgrade in der Elektronik-Werkbank platziert werden kann wird es eine Komponenten-API zur Verfügung stellen.
+Upgrades und Karten, die nicht in [Tablets](tablet.md) verwendet werden können, können nicht in der [Elektronik-Werkbank](../block/assembler.md) platziert werden. Wenn ein Upgrade in der [Elektronik-Werkbank](../block/assembler.md) platziert werden kann, steht es über den Gerätebus zur Verfügung.
 
-Sie müssen zudem in einem Spielerinventar bleiben um weiter laufen zu können. Wenn es in die Welt geworfen wird oder in ein anderes Inventar gelegt wird, schaltet es sich ab.
+Sie müssen zudem im Inventar eines Spielers bleiben, um weiterzulaufen. Wenn sie fallengelassen oder in ein anderes Inventar gelegt werden, schalten sie sich nach kurzer Zeit ab.
 
-Das Stufe-1-Tabletgehäuse kann folgende Komponenten halten:
-- 1x Stufe-1-[CPU)](cpu1.md)
-- 2x Stufe-2-[RAM](ram2.md)
-- 1x Stufe-2-[HDD](hdd1.md)
-- 2x Stufe-2-Erweiterungskarten
+Es gibt nur eine Art von Tabletgehäuse (plus eine Kreativ-Variante). Es kann folgende Komponenten aufnehmen:
+- 1x [CPU](cpu1.md)
+- [RAM](ram1.md)
+- 1x [HDD](hdd1.md)
+- Erweiterungskarten
 - 1x [EEPROM](eeprom.md)
-- 1x Stufe-1-Upgrade
-- 1x Stufe-2-Upgrade
-- 1x Stufe-3-Upgrade
+- Upgrades
+- 1x [Upgrade-Container](upgradeContainer1.md) oder [Kartencontainer](cardContainer1.md)
 
-Das Stufe-2-Tabletgehäuse kann folgende Komponenten halten:
-- 1x Stufe-3-[CPU](cpu1.md)
-- 2x Stufe-3-[RAM](ram1.md)
-- 1x Stufe-2-[Festplatte](hdd1.md)
-- 1x Stufe-2-Erweiterungskarte
-- 1x Stufe-3-Erweiterungskarte
-- 1x [EEPROM](eeprom.md)
-- 2x Stufe-2-Upgrade
-- 1x Stufe-3-Upgrade
-- 1x Stufe-2-[Upgradecontainer](upgradeContainer2.md) oder Stufe-2-[Kartencontainer](cardContainer2.md) 
-
-Das Stufe-4-Tabletgehäuse (Kreativ) kann folgende Komponenten halten:
-- 1x Stufe-3-[CPU](cpu1.md)
-- 2x Stufe-3-[RAM](ram1.md)
-- 1x Stufe-3-[Festplatte](hdd3.md)
-- 3x Stufe-3-Erweiterungskarten
-- 1x [EEPROM](eeprom.md)
-- 9x Stufe-3-Upgrades
-- 1x Stufe-3-[Upgradecontainer](upgradeContainer3.md) oder Stufe-3-[Kartencontainer](cardContainer3.md) (tier 3)
+Jeder Slot nimmt Gegenstände jeder Stufe auf.

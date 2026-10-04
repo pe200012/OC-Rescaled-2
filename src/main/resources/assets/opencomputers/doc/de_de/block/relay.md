@@ -1,11 +1,13 @@
-# Relay
+# Relais
 
 ![Baut Brücken.](oredict:oc:relay)
 
-Das Relay kann verwendet werden um verschiedene Subnetzwerken das Senden von Nachrichten zueinander zu ermöglichen, ohne Komponenten Computern in anderen Netzen zugänglich zu machen. Grundsätzlich ist es eine gute Idee Komponenten lokal zu behalten, damit [Computer](../general/computer.md) nicht die falschen Komponenten ansprechen oder Komponenten-Overflows zu verursachen (welche dazu führen, dass Computer crashen und nicht hochfahren.)
+Das Relais kann verwendet werden, um verschiedenen Subnetzwerken das Senden von Netzwerknachrichten zueinander zu ermöglichen, ohne Komponenten für [Computer](../general/computer.md) in anderen Netzwerken zugänglich zu machen. Grundsätzlich ist es eine gute Idee, Komponenten lokal zu behalten, damit [Computer](../general/computer.md) nicht den falschen [Bildschirm](screen1.md) ansprechen.
 
-Mit einer [Drahtlosnetzwerkkarte](../item/wlanCard1.md) können auch kabellose Nachrichten weitergeleitet werden. Dann kann dieser Block als Repeater verwendet werden: Es kann Nachrichten aus verkabelten Netzwerken zu anderen Geräten in verkabelten Netzwerken weiterleiten, oder Nachrichten aus kabellosen Netzwerken zu verkabelten oder kabellosen Netzwerken.
+Das Relais kann mit einer [Drahtlosnetzwerkkarte](../item/wlanCard1.md) aufgerüstet werden, um Nachrichten auch kabellos weiterzuleiten. Kabellose Nachrichten können von anderen Relais mit einer Drahtlosnetzwerkkarte oder von [Computern](../general/computer.md) mit einer Drahtlosnetzwerkkarte empfangen und weitergeleitet werden. Netzwerkkarten erscheinen unter Linux als Ethernet-Schnittstellen, und Frames werden über das Relais als normale Netzwerknachrichten übertragen, sodass TCP/IP zwischen Maschinen funktioniert.
 
-Relays führen *kein Protokoll* über kürzlich versendete Nachrichten, also ist es wichtig, Kreisläufe im Netzwerk zu vermeiden, oder das selbe Paket kann mehrmals empfangen werden. Aufgrund der geringen Puffergröße von Switches kann Paketverlust zu einem Problem werden, wenn Netzwerknachrichten zu oft gesendet werden. Ein Upgrade für Switches und Access Points zur Beschleunigung der Nachrichtenweiterleitung ist möglich, genau wie die interne Nachrichtenqueue erweitert werden kann.
+Alternativ kann das Relais mit [Verbindungskarten](../item/linkedCard.md) aufgerüstet werden. In diesem Fall leitet es Nachrichten auch durch den Tunnel der Verbindungskarte weiter; zu den üblichen Kosten, daher muss sichergestellt werden, dass das Relais ausreichend mit Energie versorgt ist.
 
-Pakete werden nur ein paar mal weitergeschickt; demnach ist nicht möglich eine unbegrenzte Anzahl an Relays aufzustellen. Standardmäßig kann ein Paket bis zu fünf mal "springen".
+Relais führen *kein Protokoll* über kürzlich weitergeleitete Pakete, also sollten Kreisläufe im Netzwerk vermieden werden, sonst kann dasselbe Paket mehrmals empfangen werden. Aufgrund der geringen Puffergröße von Relais führt zu häufiges Senden von Nachrichten zu Paketverlust. Die Geschwindigkeit, mit der sie Nachrichten weiterleiten, ist begrenzt; für mehr Geschwindigkeit können die Grenzwerte in der Konfiguration erhöht werden.
+
+Pakete werden nur eine bestimmte Anzahl von Malen weitergeschickt, daher ist es nicht möglich, eine beliebige Anzahl von Relais hintereinander zu schalten. Standardmäßig wird ein Paket bis zu fünf Mal weitergeschickt.

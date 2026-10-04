@@ -29,6 +29,8 @@
 - `getActiveEffects()` - 获取生效的效果列表。请注意一些效果可能不会在列表中出现。
 - `saveConfiguration()` - 玩家物品栏中需要有一份纳米机器，本命令会将当前配置存储到其中。
 
-例如，在OpenOS中：
-- `component.modem.broadcast(1, "nanomachines", "setInput", 1, true)`将会启用第一个输入。
-- `component.modem.broadcast(1, "nanomachines", "getHealth")`将会获取玩家的健康值信息。
+例如，在装有无线网卡的Linux机器上用micropython：
+- `bus.find("modem").broadcast(1, "nanomachines", "setInput", 1, True)`将会启用第一个输入。
+- `bus.find("modem").broadcast(1, "nanomachines", "getHealth")`将会获取玩家的健康值信息。
+
+（两行都假定已先执行`from devices import bus`。）

@@ -2,6 +2,6 @@
 
 ![猫片播放倒数，3，2，……](oredict:oc:internetCard)
 
-因特网卡为[电脑](../general/computer.md)提供了连接现实中因特网的能力。此扩展卡提供了进行简单HTTP请求的方法，还能打开简单TCP客户端套接字以供读写。
+因特网卡为[电脑](../general/computer.md)提供了连接现实中因特网的能力。在Linux中它是一个以太网接口，排在网卡之后的下一个。它相当于一个NAT网关：给机器配置一个地址和默认路由，并在`/etc/resolv.conf`中写入DNS服务器即可。向外的TCP、UDP和ping都可用，因此`wget`和`ssh`等工具可以访问外部。外部发来的连接则不可用。
 
-将因特网卡连接到[电脑](../general/computer.md)后，电脑还会连接一个自定义文件系统，其中包含数个与因特网相关的应用。例如，其中的一个可以从pastebin中下载或向其上传文本片段。还有一个翻版`wget`，可从任意HTTP URL中下载数据。
+可以在配置文件中关闭因特网访问（`internet.enableTcp`）。

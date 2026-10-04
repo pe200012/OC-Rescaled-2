@@ -29,6 +29,8 @@
 - `getActiveEffects()` - запросить список активных эффектов. Некоторые эффекты могут быть не показаны в этом списке.
 - `saveConfiguration()` - при наличии в инвентаре нанороботов сохраняет текущую конфигурацию в них.
 
-Например, в OpenOS:
-- `component.modem.broadcast(1, "nanomachines", "setInput", 1, true)` активирует первый контакт.
-- `component.modem.broadcast(1, "nanomachines", "getHealth")` запросит информации о состоянии здоровья игрока.
+Например, в micropython на машине с Linux и беспроводной сетевой картой:
+- `bus.find("modem").broadcast(1, "nanomachines", "setInput", 1, True)` активирует первый контакт.
+- `bus.find("modem").broadcast(1, "nanomachines", "getHealth")` запросит информацию о состоянии здоровья игрока.
+
+(Обе строки предполагают, что сначала выполнено `from devices import bus`.)

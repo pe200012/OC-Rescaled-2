@@ -2,36 +2,8 @@
 
 ![“箱”当可靠。](oredict:oc:case1)
 
-电脑机箱有三个不同等级，等级限制了它们所能安装的组件。此外还有一个仅供创造模式使用的等级。电脑机箱还可以放置到[装配机](assembler.md)中组装[机器人](robot.md)。
+机箱用于安装[电脑](../general/computer.md)的各个部件：[CPU](../item/cpu1.md)、[内存条](../item/ram1.md)、[硬盘](../item/hdd1.md)、扩展卡和[EEPROM](../item/eeprom.md)。机箱只有一种，此外还有一个仅供创造模式使用的机箱。任何槽位都可以放入任何规格的物品。
 
-电脑机箱的部分槽位有等级限制，所能安装组件的最高等级在其角落处用罗马数字标明。举例而言，T2槽位也能插入T1组件。
+电脑运行Linux。它会启动EEPROM中的程序，并且在电脑第一次启动时自动在第一块硬盘上安装Linux。没有硬盘时，Linux会作为内存中的临时系统运行，停止后不会保留任何内容。机箱还可以放置到[电子装配机](assembler.md)中组装[机器人](robot.md)。
 
-T1机箱可安装：
-- 2x T1扩展卡（如[显卡](../item/graphicsCard1.md)、[网卡](../item/lanCard.md)等）
-- 1x T1[CPU](../item/cpu1.md)
-- 2x T1[内存条](../item/ram1.md)
-- 1x T1[硬盘](../item/hdd1.md)
-
-T2机箱可安装：
-- 1x T1扩展卡（如[显卡](../item/graphicsCard1.md)、[网卡](../item/lanCard.md)等）
-- 1x T2扩展卡
-- 1x T2[CPU](../item/cpu2.md)
-- 2x T2[内存条](../item/ram3.md)
-- 1x T1[硬盘](../item/hdd1.md)
-- 1x T2[硬盘](../item/hdd2.md)
-
-T3机箱可安装：
-- 1x T3扩展卡（如[显卡](../item/graphicsCard1.md)、[网卡](../item/lanCard.md)等）
-- 2x T2扩展卡
-- 1x T3[CPU](../item/cpu3.md)
-- 2x T3[内存条](../item/ram5.md)
-- 1x T2[硬盘](../item/hdd2.md)
-- 1x T3[硬盘](../item/hdd3.md)
-- 1x [软盘](../item/floppy.md)
-
-T4（创造模式）机箱可安装：
-- 3x T3扩展卡（如[显卡](../item/graphicsCard1.md)、[网卡](../item/lanCard.md)等）
-- 1x T3[CPU](../item/cpu3.md)
-- 2x T3[内存条](../item/ram5.md)
-- 2x T3[硬盘](../item/hdd3.md)
-- 1x [软盘](../item/floppy.md)
+与机箱相接的[显示屏](screen1.md)会用作控制台，连接到该显示屏的[键盘](keyboard.md)用于输入。

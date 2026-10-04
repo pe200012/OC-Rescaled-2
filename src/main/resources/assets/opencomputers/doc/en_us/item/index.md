@@ -61,7 +61,6 @@ Keep in mind that some of these may not be available, depending on the recipe se
 * [Terminal Server](terminalserver.md)
 
 ### Other
-* [APU](apu1.md)
 * [Component Bus](componentbus1.md)
 * [CPU](cpu1.md)
 * [EEPROM](eeprom.md)

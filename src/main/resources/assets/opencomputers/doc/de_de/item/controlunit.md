@@ -1,5 +1,5 @@
-# Kontrolleinheit
+# Steuerwerk
 
-![Mit eingebauter Cruising-Funktion.](oredict:oc:materialCU)
+![Mit eingebautem Tempomat.](oredict:oc:materialCU)
 
-Hochstufiges Craftingitem in weiter entwickelten Schaltkreisen wie [CPUs](cpu1.md).
+Craftingitem, das in weiter entwickelten Schaltkreisen wie [CPUs](cpu1.md) verwendet wird.

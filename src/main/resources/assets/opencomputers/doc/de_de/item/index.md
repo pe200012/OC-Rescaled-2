@@ -2,7 +2,7 @@
 
 Dieser Index listet alle dokumentierten Items in OpenComputers auf. Eine Auflistung aller Blöcke ist im [Blockindex](../block/index.md) zu finden.
 
-Je nach dem, welches Recipe Set verwendet wird können einzelne Items nicht verfügbar sein.
+Je nach dem, welches Recipe Set verwendet wird, können einzelne Items nicht verfügbar sein.
 
 ## Werkzeuge
 * [Messgerät](analyzer.md)
@@ -20,14 +20,14 @@ Je nach dem, welches Recipe Set verwendet wird können einzelne Items nicht verf
 
 ### Karten
 * [Abstrakter-Bus-Karte](abstractbuscard.md)
-* [Datenkarte](dataCard.md)
-* [Debug-Karte](debugcard.md) (aka AMI)
+* [Datenkarte](datacard1.md)
+* [Debug-Karte](debugCard.md) (aka AMI)
 * [Grafikkarte](graphicscard1.md)
 * [Internetkarte](internetcard.md)
 * [Verknüpfte Karte](linkedcard.md)
 * [Netzwerkkarte](lancard.md)
 * [Redstonekarte](redstonecard1.md)
-* [Drahtlosnetzwerkkarte](wlancard.md)
+* [Drahtlosnetzwerkkarte](wlancard1.md)
 * [Weltsensorkarte](worldsensorcard.md)
 
 ### Upgrades
@@ -43,17 +43,24 @@ Je nach dem, welches Recipe Set verwendet wird können einzelne Items nicht verf
 * [Inventarbedienungs-Upgrade](inventorycontrollerupgrade.md)
 * [Inventar-Upgrade](inventoryupgrade.md)
 * [Leinen-Upgrade](leashupgrade.md)
+* [MFU](mfu.md)
 * [Navigations-Upgrade](navigationupgrade.md)
 * [Kolben-Upgrade](pistonupgrade.md)
 * [Schild-Upgrade](signupgrade.md)
 * [Solargenerator-Upgrade](solargeneratorupgrade.md)
+* [Klebekolben-Upgrade](stickypistonupgrade.md)
 * [Tankbedienungs-Upgrade](tankcontrollerupgrade.md)
 * [Tank-Upgrade](tankupgrade.md)
 * [Traktorstrahl-Upgrade](tractorbeamupgrade.md)
+* [Handels-Upgrade](tradingupgrade.md)
 * [Upgrade-Behälter](upgradecontainer1.md)
 
+### Rack-Einschübe
+* [Diskettenlaufwerk](diskdrivemountable.md)
+* [Server](server1.md)
+* [Terminalserver](terminalserver.md)
+
 ### Anderes
-* [Beschleunigter Prozessor (APU)](apu1.md)
 * [Komponentenschnittstelle](componentbus1.md)
 * [CPU](cpu1.md)
 * [EEPROM](eeprom.md)
@@ -68,14 +75,14 @@ Je nach dem, welches Recipe Set verwendet wird können einzelne Items nicht verf
 * [Tastengruppe](buttongroup.md)
 * [Karte](card.md)
 * [Leiterplatte](circuitboard.md)
-* [Kontrolleinheit](controlunit.md)
+* [Steuerwerk](controlunit.md)
 * [Schneidedraht](cuttingwire.md)
 * [Speicherplatte](disk.md)
 * [Internetz](interweb.md)
 * [Microchip](chip1.md)
 * [Ziffernblock](numpad.md)
 * [Bedruckte Leiterplatte](printedcircuitboard.md)
-* [Rohe Leiderplatte](rawcircuitboard.md)
+* [Rohe Leiterplatte](rawcircuitboard.md)
 * [Transistor](transistor.md)
 
 ## Montage / Druck
@@ -87,3 +94,4 @@ Je nach dem, welches Recipe Set verwendet wird können einzelne Items nicht verf
 
 ## Anderes
 * [Schwebestiefel](hoverboots.md)
+* [Nanomaschinen](nanomachines.md)

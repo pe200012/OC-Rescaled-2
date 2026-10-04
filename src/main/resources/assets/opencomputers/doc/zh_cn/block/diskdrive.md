@@ -2,7 +2,7 @@
 
 ![轉啊轉啊...](oredict:oc:diskDrive)
 
-软盘驱动器与[电脑](../general/computer.md)连接后可读取[软盘](../item/floppy.md)。此设备在初期很有用，因为低等级的[电脑机箱](case1.md)没有内置的软盘插槽，而你需要操作系统引导电脑启动。[OpenOS](../general/openOS.md)软盘可以通过将空[软盘](../item/floppy.md)和[手册](../item/manual.md)一起合成获得。
+软盘驱动器与[电脑](../general/computer.md)连接后可读取[软盘](../item/floppy.md)。在[Linux](../general/linux.md)中，软盘是一块512 KB的裸盘。机器能看到的每个软盘驱动器（最多4个）都是一个驱动器，编号排在硬盘之后。请用`mke2fs`格式化软盘，然后用`mount`挂载。电脑运行时可以插入或取出软盘，但新接入的软盘驱动器需要重启才能识别。
 
 软盘驱动器也可以装进[机器人](robot.md)中，这样机器人就能插[软盘](../item/floppy.md)了。这一功能作用很大，因为这是不使用网络（例如通过[网卡](../item/lanCard.md)通信）的前提下，机器人唯一一种与外界交换数据的手段。
 

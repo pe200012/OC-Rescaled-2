@@ -2,6 +2,6 @@
 
 ![Let's get this party started.](oredict:oc:eeprom)
 
-Der EEPROM enthält den Code der verwendet wird um den Computer zu starten. Diese Daten sind als einfaches Bytearray gespeichert und können bei unterschiedlichen Architekturen andere Operationen auslösen. Das LUA-BIOS ist ein kleines Script das auf dem Dateisystem nach eine Datei namens `init.lua`. Auf anderen Architekturen kann es echter Maschinencode sein.
+Das EEPROM fasst 64 KB und enthält den Code, der verwendet wird, um einen Computer beim Starten zu initialisieren. Ein Computer startet das, was auf seinem EEPROM liegt, und das muss ein RISC-V-Programm sein. Wenn ein EEPROM mit dem [Handbuch](manual.md) gecraftet wird, entsteht ein "EEPROM (Linux)", das den Linux-Bootloader enthält.
 
-EEPROMs können für spezialisierte Aufgaben programmiert werden, wie es bei [Drohnen](drone.md) oder [Microcontrollern](../block/microcontroller.md) der Fall ist.
+EEPROMs können mit Bare-Metal-Programmen für spezialisierte Aufgaben programmiert werden, wie es bei [Drohnen](drone.md) oder [Microcontrollern](../block/microcontroller.md) der Fall ist. Wenn das EEPROM Text enthält, meldet der Computer "EEPROM holds text, not a RISC-V program". Wenn kein EEPROM vorhanden oder es leer ist, meldet der Computer "no bootable EEPROM". Mit dem [Messgerät](analyzer.md) an der Maschine können Bootfehler angezeigt werden.

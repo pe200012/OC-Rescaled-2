@@ -2,7 +2,7 @@
 
 ![Free housing.](oredict:oc:serverRack)
 
-Ein Serverschrank kann bis zu vier [Server](../item/server1.md) enthalten. Ein Server ist ein höherstufiger [Computer](../general/computer.md) welcher nur in einem Serverschrank laufen kann. Server können mit einer [Fernbedienung](../item/terminal.md) ferngesteuert werden. Die Anzahl der Terminals die gleichzeitig mit einem Server verbunden werden können wird von der Stufe des Servers begrenzt. Der Abstand zum Server, bis zu dem das Terminal funktioniert kann in der GUI des Serverschranks konfiguriert werden. Mehr Reichweite bedeutet mehr Energieverbrauch.
+Ein Serverschrank kann bis zu vier [Server](../item/server1.md) enthalten. Ein Server ist ein [Computer](../general/computer.md) welcher nur in einem Serverschrank laufen kann. Server können mit einer [Fernbedienung](../item/terminal.md) ferngesteuert werden. Die Anzahl der Terminals die gleichzeitig mit einem Server verbunden werden können ist begrenzt. Der Abstand zum Server, bis zu dem das Terminal funktioniert kann in der GUI des Serverschranks konfiguriert werden. Mehr Reichweite bedeutet mehr Energieverbrauch.
 
 Jeder Server in einem Serverschrank kann nur mit einer Seite des Schranks auf einmal kommunizieren - oder mit gar keiner. Welche Seite ein Server abdeckt kann in der GUI des Schranks konfiguriert werden. Es gilt zu beachten, dass die Richtungen jeweils aus Sicht des Schrankes zu sehen sind. Auf der Rückseite des Serverschranks sind die Seiten in anderen Himmelsrichtungen als auf der Vorderseite.
 

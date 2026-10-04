@@ -2,6 +2,6 @@
 
 ![Im Gegensatz zum allgemeinen Glauben speichert das keine Daten.](oredict:oc:dataCard1)
 
-Die Datenkarte ist eine Werkzeugkarte die einige Algorithmen zur Verfügung stellen die nur sehr schlecht oder sehr langsam implementierbar wären. Möglich ist Hashing und grundlegendes Inflating und Deflating.. Zudem enthält es ein angefügtes Dateisystem und stellt eine Vielzahl von Programmen zur Verfügung die die Funktionen der Karte verwenden, ähnlich der Internetkarte.
+Die Datenkarte ist eine Werkzeugkarte, die einige Algorithmen zur Verfügung stellt, die in einem Programm relativ langsam wären. Möglich sind Hashing sowie grundlegendes Inflating und Deflating. Programme erreichen sie als Gerät am Gerätebus.
 
-Die Menge an Daten die zur selben Zeit ist limitiert und jede Operation benötigt Energie.
+Die Menge an Daten, die auf einmal verarbeitet werden kann, ist begrenzt, und jede Operation verbraucht etwas Energie.

@@ -6,44 +6,33 @@ Also know as "how to build your first computer". To get your first [computer](co
 
 First off, you will need a [computer case](../block/case1.md). This is the block which will contain all of the components, defining the behavior of the computer you are building.
 
-![A tier two computer case.](oredict:oc:case2)
+![A computer case.](oredict:oc:case3)
 
-For example, you will need to choose what tier of [graphics card](../item/graphicsCard1.md) you wish to use, if you need a [network card](../item/lanCard.md), a [redstone card](../item/redstoneCard1.md) or, if you're just playing around in creative mode, maybe even a [debug card](../item/debugCard.md).
+When you open the [computer case](../block/case1.md)'s GUI, you will see a few slots to the right. Any component goes into any slot of its kind: there are no tiers to worry about.
 
-When you open the [computer case](../block/case1.md)'s GUI, you will see a few slots to the right. The number of slots, and what tier of component can be placed into them (indicated by the small roman numeral in the slot) depends on the tier of the case itself.
-![GUI of a tier two computer case.](opencomputers:doc/img/configuration_case1.png)
 In their empty state, [computer cases](../block/case1.md) are pretty useless. You can try to power up your [computer](computer.md) now, but it'll immediately print an error message to your chat log, and make its dissatisfaction heard by beeping at you. Good thing the error message is telling you what you can do to fix this situation: it requires energy. Connect your [computer](computer.md) to some power, either directly or via a [power converter](../block/powerConverter.md).
 
-When you try to start it now, it will tell you that you need a [CPU](../item/cpu1.md). These come in different tiers - a trend you will notice is present throughout OpenComputers. For [CPUs](../item/cpu1.md), higher tiers mean more components at a time, as well as faster execution. So pick a tier, and put it in your [computer case](../block/case1.md).
+When you try to start it now, it will tell you that you need a [CPU](../item/cpu1.md). There is one kind of [CPU](../item/cpu1.md), but it can run at 25, 50, 100 or 200 MHz: use it while sneaking to switch. Faster is nicer, but draws more power; 50 MHz is a fine start. Put it in your [computer case](../block/case1.md).
 
-Next up you will be asked to insert some [memory (RAM)](../item/ram1.md). Notice that the beep code is different now: long-short. Higher tiers of [memory (RAM)](../item/ram1.md) mean more memory available to the programs running on your [computer](computer.md). To run [OpenOS](openOS.md), which is the goal of this introduction, you will want to use at least two tier 1 [memory (RAM)](../item/ram1.md) sticks.
+Next up you will be asked to insert some [memory (RAM)](../item/ram1.md). Notice that the beep code is different now: long-short. [Memory](../item/ram1.md) comes in sizes from 1 MB to 32 MB, and the sticks you install add up. Linux needs at least 8 MB; 16 MB is comfortable.
 
-We're making good progress here. By now your [computer case](../block/case1.md) will look somewhat like this:
-![Partially configured computer.](opencomputers:doc/img/configuration_case2.png)
-And behold, turning it on now does not print any more error messages! But alas, it still doesn't do much. At least it beeps twice now. That means the actual execution of the [computer](computer.md) failed. In other words: it technically runs! This is where a very useful tool comes into play: the [analyzer](../item/analyzer.md). This tool allows inspecting many of OpenComputers' blocks, as well as some blocks from other mods. To use it on the [computer](computer.md), use the [analyzer](../item/analyzer.md) on the case while sneaking.
+And behold, turning it on now does not print any more error messages! But alas, it still doesn't do much. At least it beeps twice now. That means the [computer](computer.md) started but failed right away. This is where a very useful tool comes into play: the [analyzer](../item/analyzer.md). This tool allows inspecting many of OpenComputers' blocks, as well as some blocks from other mods. To use it on the [computer](computer.md), use the [analyzer](../item/analyzer.md) on the case while sneaking.
 
 You should now see the error that caused the [computer](computer.md) to crash:
-`no bios found; install configured EEPROM`
+`no bootable EEPROM`
 
-The emphasis here is on *configured*. Crafting an [EEPROM](../item/eeprom.md) is pretty simple. To configure it, you will usually use a [computer](computer.md) - but that's a little difficult right now, so we're going to use a recipe to craft a configured "Lua BIOS" [EEPROM](../item/eeprom.md). The standard recipe is an [EEPROM](../item/eeprom.md) plus a [manual](../item/manual.md). Put the configured [EEPROM](../item/eeprom.md) into your [computer](computer.md), aaaand.
+The computer runs whatever program is on its [EEPROM](../item/eeprom.md), and it has none. Crafting an [EEPROM](../item/eeprom.md) is pretty simple, and for a [computer](computer.md) we want one holding the Linux boot loader: craft an [EEPROM](../item/eeprom.md) together with a [manual](../item/manual.md) to get an "EEPROM (Linux)". Put it into your [computer](computer.md).
 
-Nope. Still nothing. But we know what to do: player uses [analyzer](../item/analyzer.md), it's super effective! Now we have a different error message:
-`no bootable medium found; file not found`
+The boot loader looks for Linux on the first [hard drive](../item/hdd1.md). Put a [hard drive](../item/hdd1.md) into the case: the first time the computer starts, Linux is installed onto it, and everything you save there stays. Without a [hard drive](../item/hdd1.md) the computer still starts, but runs Linux from memory and forgets everything when it stops; fine for trying things out.
 
-Well then. That means the BIOS is working. It's just not finding a file system to boot from, such as a [floppy](../item/floppy.md) or [hard drive](../item/hdd1.md). The Lua BIOS in particular expects such a file system to furthermore contain a file named `init.lua` at root level. As with the [EEPROM](../item/eeprom.md), you usually write to file systems using a [computer](computer.md). You probably guessed it: we now need to craft our operating system disk. Take a blank [floppy disk](../item/floppy.md) and a [manual](../item/manual.md), craft them together, and you'll get an [OpenOS](openOS.md) disk.
+Press the power button. It lives! Or should, anyway. If it doesn't, something went wrong, and you'll want to investigate using the [analyzer](../item/analyzer.md). But assuming it's running now, you're pretty much done. All that's left is to make it take input and show some output.
 
-Now, if you used a tier 2 [computer case](../block/case2.md) as in the screenshots above, you'll have nowhere to place that floppy. If you have a tier 3 or creative [computer case](../block/case3.md), you can place the floppy right into the [case](../block/case1.md). Otherwise you'll need to place a [disk drive](../block/diskDrive.md) next to your case (or connect it via [cables](../block/cable.md)). Once your disk is in place, you know what to do. Press the power button.
+To see what the [computer](computer.md) is doing, you'll want to grab a [screen](../block/screen1.md). No graphics card is needed: the console is drawn onto the [screen](../block/screen1.md) directly.
+![No, it's not a flatscreen.](oredict:oc:screen3)
 
-It lives! Or should, anyway. If it doesn't something went wrong, and you'll want to investigate using the [analyzer](../item/analyzer.md). But assuming it's running now, you're pretty much done. The hardest part is over. All that's left is to make it take input and show some output.
+Place the [screen](../block/screen1.md) adjacent to your [computer case](../block/case1.md), or connect it using some [cable](../block/cable.md). You should now see Linux booting on the [screen](../block/screen1.md). Finally, place a [keyboard](../block/keyboard.md) either on the [screen](../block/screen1.md) itself, or in a way so that it faces the [screen](../block/screen1.md), to enable [keyboard](../block/keyboard.md) input.
 
-To allow the [computer](computer.md) to show some output, you'll want to grab a [screen](../block/screen1.md) and a [graphics card](../item/graphicsCard1.md).
-![No, it's not a flatscreen.](oredict:oc:screen2)
-
-Place the [screen](../block/screen1.md) adjacent to your [computer case](../block/case1.md), or, again, connect it using some [cable](../block/cable.md). Then place a [graphics card](../item/graphicsCard1.md) of your choice into the [computer case](../block/case1.md). You should now see a blinking cursor on the [screen](../block/screen1.md). Finally, place a [keyboard](../block/keyboard.md) either on the [screen](../block/screen1.md) itself, or in a way so that it faces the [screen](../block/screen1.md), to enable [keyboard](../block/keyboard.md) input.
-
-And with that, you're done. The [computer](computer.md) is up and running and ready for action. Try using it now! Type `lua` in the shell and press enter, and you'll be greeted with a bit of information on how to use the Lua interpreter. Here you can test basic Lua commands. For more information this topic see [the Lua page](lua.md).
-
-![It lives!](opencomputers:doc/img/configuration_done.png)
+And with that, you're done. Log in as `root`; there is no password. You are now in a Linux shell. Try `ls /mnt/builtin` to see what the mod brings along, or `micropython` to get a Python prompt. The [Linux](linux.md) page tells you more about the system, and [programming](programming.md) how to control redstone, robots and everything else from it.
 
 Have fun building more complex [computers](computer.md), messing with [servers](../item/server1.md) and assembling [robots](../block/robot.md), [drones](../item/drone.md), [microcontrollers](../block/microcontroller.md) and [tablets](../item/tablet.md) in the [assembler](../block/assembler.md).
 
