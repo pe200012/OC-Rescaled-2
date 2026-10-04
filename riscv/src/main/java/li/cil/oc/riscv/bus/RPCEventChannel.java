@@ -10,7 +10,8 @@ import li.cil.sedna.api.device.serial.SerialDevice;
 import java.nio.ByteBuffer;
 
 final class RPCEventChannel {
-    private static final int MAX_QUEUED_SIZE = 8 * 1024;
+    // Room for a whole network packet of binary, inline as base64.
+    private static final int MAX_QUEUED_SIZE = 64 * 1024;
     private static final int DISCARD_BUFFER_SIZE = 256;
 
     // --------------------------------------------------------------------- //

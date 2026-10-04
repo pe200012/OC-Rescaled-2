@@ -204,6 +204,7 @@ class DeviceBus:
                     return None
                 self._apply_event(event)
             if event_type is None or event.get("type") == event_type:
+                event["data"] = oc2_blob.substitute(event.get("data"), None)
                 return event
 
     def _discard_payload(self, reply):

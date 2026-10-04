@@ -18,6 +18,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +29,8 @@ import java.util.UUID;
  * Host side of the device bus the guest's {@code devices} libraries talk to, speaking the wire
  * format of OpenComputers II: NUL-framed JSON on an RPC port, binary payloads on a blob port and
  * events on an event port. Which devices exist and what calling them does is up to {@link Devices}.
+ * Binary that is not on the blob port, such as in events or past a message's one payload, is
+ * inline as {@code {"$bytes": base64}}, both ways.
  */
 public final class DeviceBus {
     public static final int MAX_PAYLOAD_SIZE = 512 * 1024;
@@ -52,6 +55,7 @@ public final class DeviceBus {
     private static final String MESSAGE_TYPE_EVENTS_DROPPED = "eventsDropped";
 
     private static final String BLOB_REFERENCE_KEY = "$blob";
+    private static final String BYTES_KEY = "$bytes";
 
     // --------------------------------------------------------------------- //
 
@@ -451,6 +455,9 @@ public final class DeviceBus {
             }
             return receivedBlob;
         }
+        if (object.has(BYTES_KEY)) {
+            return Base64.getDecoder().decode(object.get(BYTES_KEY).getAsString());
+        }
         final Map<Object, Object> table = new HashMap<>();
         for (final Map.Entry<String, JsonElement> entry : object.entrySet()) {
             table.put(entry.getKey(), fromJson(entry.getValue()));
@@ -479,8 +486,13 @@ public final class DeviceBus {
         }
         if (value instanceof byte[] bytes) {
             final String text = decodeUtf8(bytes);
-            if (text != null || !allowBlob || pendingBlob != null) {
-                return new JsonPrimitive(text != null ? text : new String(bytes, StandardCharsets.ISO_8859_1));
+            if (text != null) {
+                return new JsonPrimitive(text);
+            }
+            if (!allowBlob || pendingBlob != null) {
+                final JsonObject inline = new JsonObject();
+                inline.addProperty(BYTES_KEY, Base64.getEncoder().encodeToString(bytes));
+                return inline;
             }
             pendingBlob = bytes;
             final JsonObject marker = new JsonObject();

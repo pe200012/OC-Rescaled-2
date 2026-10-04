@@ -1,3 +1,4 @@
+import binascii
 import io
 import select
 import struct
@@ -6,6 +7,8 @@ from oc2 import ports
 from oc2.channel import read_exactly, write_all
 
 KEY = "$blob"
+# Binary not on the payload channel: in events, or past a message's one payload.
+BYTES_KEY = "$bytes"
 MAX_OUTBOUND = 512 * 1024
 MAX_INBOUND = MAX_OUTBOUND
 CHUNK_SIZE = 32 * 1024
@@ -57,9 +60,9 @@ def extract(args):
             payload = value.data
             parameters.append({KEY: True})
         elif isinstance(value, (bytes, bytearray)):
-            # json.dumps would quietly encode these as a string. Binary has to be declared,
-            # so it travels on the payload channel and the host sees a byte array.
-            raise Exception("wrap binary parameters in bus.blob(...)")
+            # json.dumps would quietly encode these as a string. Small binary goes inline;
+            # messages are limited to 4 KiB, so large data belongs in bus.blob(...).
+            parameters.append({BYTES_KEY: binascii.b2a_base64(value)[:-1].decode()})
         else:
             parameters.append(value)
     return parameters, payload
@@ -75,6 +78,8 @@ def substitute(value, payload, depth=0):
     if isinstance(value, dict):
         if value.get(KEY):
             return payload
+        if BYTES_KEY in value:
+            return binascii.a2b_base64(value[BYTES_KEY])
         for key in value:
             value[key] = substitute(value[key], payload, depth + 1)
     else:
@@ -128,7 +133,7 @@ class PayloadChannel:
 def resolve(channel, message):
     reference = message.get("blob")
     if reference is None:
-        return message.get("data")
+        return substitute(message.get("data"), None)
 
     length = reference["length"]
     if length < 0 or length > MAX_INBOUND:

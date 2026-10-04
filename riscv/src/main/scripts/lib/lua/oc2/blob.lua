@@ -11,12 +11,48 @@ local readTimeout = 5000
 local maxDepth = 32
 
 blob.key = "$blob"
+-- Binary not on the payload channel: in events, or past a message's one payload.
+blob.bytesKey = "$bytes"
 blob.maxOutbound = 512 * 1024
 blob.maxInbound = blob.maxOutbound
 blob.chunkSize = chunkSize
 blob.readTimeout = readTimeout
 blob.maxDepth = maxDepth
 blob.marker = {}
+
+local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+function blob.encodeBase64(data)
+  local out = {}
+  for i = 1, #data, 3 do
+    local a, b, c = data:byte(i, i + 2)
+    local n = (a << 16) | ((b or 0) << 8) | (c or 0)
+    local chars = {}
+    for shift = 18, 0, -6 do
+      local index = (n >> shift & 63) + 1
+      chars[#chars + 1] = alphabet:sub(index, index)
+    end
+    if not b then chars[3] = "=" end
+    if not c then chars[4] = "=" end
+    out[#out + 1] = table.concat(chars)
+  end
+  return table.concat(out)
+end
+
+function blob.decodeBase64(text)
+  text = text:gsub("[^%w%+/]", "") -- padding and line breaks
+  local out = {}
+  for i = 1, #text, 4 do
+    local n, count = 0, 0
+    for j = i, math.min(i + 3, #text) do
+      n = (n << 6) | (alphabet:find(text:sub(j, j), 1, true) - 1)
+      count = count + 1
+    end
+    n = n << (6 * (4 - count))
+    out[#out + 1] = string.char(n >> 16 & 255, n >> 8 & 255, n & 255):sub(1, count - 1)
+  end
+  return table.concat(out)
+end
 
 function blob.wrap(data)
   if type(data) ~= "string" then
@@ -59,6 +95,9 @@ function blob.extract(...)
       parameters[i] = { [blob.key] = true }
     elseif value == nil then
       parameters[i] = json_null
+    elseif type(value) == "string" and not utf8.len(value) then
+      -- Not text, so binary; small enough to go inline, as messages are limited to 4 KiB.
+      parameters[i] = { [blob.bytesKey] = blob.encodeBase64(value) }
     else
       parameters[i] = value
     end
@@ -78,6 +117,9 @@ function blob.substitute(value, payload, depth)
 
   if value[blob.key] then
     return payload
+  end
+  if value[blob.bytesKey] then
+    return blob.decodeBase64(value[blob.bytesKey])
   end
 
   for key, item in pairs(value) do
@@ -136,7 +178,7 @@ end
 function blob.resolve(channel, result)
   local reference = result.blob
   if not reference then
-    return result.data
+    return blob.substitute(result.data)
   end
 
   if reference.length < 0 or reference.length > blob.maxInbound then

@@ -293,6 +293,7 @@ function DeviceBus:waitEvent(timeout, eventType)
     end
 
     if not eventType or event.type == eventType then
+      event.data = blob.substitute(event.data)
       return event
     end
   end

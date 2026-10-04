@@ -42,7 +42,7 @@ public final class DeviceBusTest {
                 return List.of(new DeviceBus.MethodInfo("move", null), new DeviceBus.MethodInfo("turn", null), new DeviceBus.MethodInfo("swing", null));
             }
             return REDSTONE.equals(device)
-                ? List.of(new DeviceBus.MethodInfo("setOutput", "function(side, value)"), new DeviceBus.MethodInfo("getInput", null))
+                ? List.of(new DeviceBus.MethodInfo("setOutput", "function(side, value)"), new DeviceBus.MethodInfo("getInput", null), new DeviceBus.MethodInfo("readBoth", null))
                 : null;
         }
 
@@ -60,6 +60,9 @@ public final class DeviceBusTest {
                     calls.add("getInput" + Arrays.toString(Arrays.stream(arguments)
                         .map(a -> a instanceof byte[] bytes ? HexFormat.of().formatHex(bytes) : a).toArray()) + " on main thread");
                     return new Object[]{7};
+                }
+                case "readBoth" -> {
+                    return new Object[]{new byte[]{(byte) 0xff, 0}, new byte[]{(byte) 0x80, 1}};
                 }
                 case "move", "turn", "swing" -> {
                     calls.add(method + Arrays.toString(arguments));
@@ -96,5 +99,31 @@ public final class DeviceBusTest {
         test.type("micropython -c \"import robot; print('moved', robot.forward(), 'turned', robot.turn_left(), 'swung', robot.swing(robot.UP))\"");
         test.awaitScreen("moved None turned True swung True");
         assertEquals(List.of("move[3.0]", "turn[false]", "swing[1.0, null, false]"), devices.calls);
+    }
+
+    @Test
+    public void binaryTravelsInResultsArgumentsAndEvents() throws Exception {
+        final FakeDevices devices = new FakeDevices();
+        final TestMachine test = TestMachine.boot(devices);
+
+        test.login();
+        // The first binary result is a payload, the second goes inline; so do binary arguments.
+        test.type("micropython -c \"from devices import bus; r=bus.find('redstone'); a,b=r.readBoth(); "
+            + "print('py', a.hex(), b.hex(), r.getInput(b'\\xfe', b'\\x80\\x00'))\"");
+        test.awaitScreen("py ff00 8001 7");
+        test.type("lua -e \"local r=require('devices'):find('redstone'); local v=r:readBoth(); "
+            + "print('lua-'..v[1]:byte(1)..'-'..v[2]:byte(1)..'-'..r:getInput('\\xfe'))\"");
+        test.awaitScreen("lua-255-128-7.0");
+        assertEquals(List.of("getInput[fe, 8000] on main thread", "getInput[fe] on main thread"), devices.calls);
+
+        // Signals carry binary too. Sent until it arrives, as the guest may not be listening yet.
+        test.type("micropython -c \"from devices import bus; e=bus.wait_event(60000, 'modem_message'); print('event', e['data'][1].hex())\"");
+        final int[] steps = {0};
+        test.awaitCondition("binary event", () -> {
+            if (steps[0]++ % 5000 == 0) {
+                test.bus.sendEvent(REDSTONE, "modem_message", new Object[]{"text", new byte[]{(byte) 0xff, 0}});
+            }
+            return test.screenText().contains("event ff00");
+        });
     }
 }
