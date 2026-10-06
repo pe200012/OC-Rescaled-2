@@ -6,4 +6,6 @@
 	url = https://github.com/fnuecke/ceres.git
 [submodule "deps/buildroot"]
 	path = deps/buildroot
-	url = https://github.com/fnuecke/buildroot.git
+	url = https://github.com/pe200012/buildroot.git
+	branch = oc-riscv
+	shallow = true
