@@ -1,0 +1,38 @@
+package ocsquared.integration.util
+
+import ocsquared.integration.Mods
+import ocsquared.util.BlockPosition
+import ocsquared.util.ExtendedWorld._
+import net.minecraft.util.EnumFacing
+
+import scala.collection.mutable
+
+object BundledRedstone {
+  val providers: mutable.Buffer[RedstoneProvider] = mutable.Buffer.empty[RedstoneProvider]
+
+  def addProvider(provider: RedstoneProvider): Unit = providers += provider
+
+  def isAvailable: Boolean = providers.nonEmpty
+
+  def computeInput(pos: BlockPosition, side: EnumFacing): Int = {
+    if (pos.world.get.blockExists(pos.offset(side)))
+      providers.map(_.computeInput(pos, side)).padTo(1, 0).max
+    else 0
+  }
+
+  def computeBundledInput(pos: BlockPosition, side: EnumFacing): Array[Int] = {
+    if (pos.world.get.blockExists(pos.offset(side))) {
+      val inputs = providers.map(_.computeBundledInput(pos, side)).filter(_ != null)
+      if (inputs.isEmpty) null
+      else inputs.reduce((a, b) => a.lazyZip(b).map((l, r) => math.max(l, r)))
+    }
+    else null
+  }
+
+  trait RedstoneProvider {
+    def computeInput(pos: BlockPosition, side: EnumFacing): Int
+
+    def computeBundledInput(pos: BlockPosition, side: EnumFacing): Array[Int]
+  }
+
+}

@@ -1,0 +1,10 @@
+package ocsquared.common.recipe
+
+import net.minecraft.inventory.InventoryCrafting
+import net.minecraft.item.ItemStack
+import net.minecraftforge.oredict.ShapelessOreRecipe
+
+class ExtendedShapelessOreRecipe(result: ItemStack, ingredients: AnyRef*) extends ShapelessOreRecipe(null, result, ingredients*) {
+  override def getCraftingResult(inventory: InventoryCrafting): ItemStack =
+    ExtendedRecipe.addNBTToResult(this, super.getCraftingResult(inventory), inventory)
+}

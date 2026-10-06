@@ -3,7 +3,7 @@ plugins {
     id 'com.gradleup.shadow' version '9.6.1'
 }
 
-group = 'li.cil.oc'
+group = 'ocsquared'
 
 java {
     toolchain {
@@ -56,11 +56,11 @@ shadowJar {
         exclude(dependency('com.google.code.findbugs:.*'))
         exclude(dependency('com.google.errorprone:.*'))
     }
-    relocate 'it.unimi.dsi.fastutil', 'li.cil.oc.repack.fastutil'
-    relocate 'org.apache.commons.io', 'li.cil.oc.repack.commons.io'
-    relocate 'org.apache.commons.lang3', 'li.cil.oc.repack.commons.lang3'
-    relocate 'org.objectweb.asm', 'li.cil.oc.repack.asm'
-    relocate 'com.google.gson', 'li.cil.oc.repack.gson'
+    relocate 'it.unimi.dsi.fastutil', 'ocsquared.repack.fastutil'
+    relocate 'org.apache.commons.io', 'ocsquared.repack.commons.io'
+    relocate 'org.apache.commons.lang3', 'ocsquared.repack.commons.lang3'
+    relocate 'org.objectweb.asm', 'ocsquared.repack.asm'
+    relocate 'com.google.gson', 'ocsquared.repack.gson'
     exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/versions/**', 'module-info.class'
 }
 
@@ -74,6 +74,6 @@ def packageScripts = tasks.register('packageScripts', Zip) {
 
 processResources {
     from(packageScripts) {
-        into 'li/cil/oc/riscv'
+        into 'ocsquared/riscv'
     }
 }

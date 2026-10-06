@@ -1,0 +1,32 @@
+package ocsquared.common.item.data
+
+import li.cil.oc.api
+import li.cil.oc.api.Persistable
+import net.minecraft.item.ItemStack
+import net.minecraft.nbt.NBTTagCompound
+
+abstract class ItemData(val itemName: String) extends Persistable {
+  def load(stack: ItemStack):Unit = {
+    if (stack.hasTagCompound) {
+      // Because ItemStack's load function doesn't copy the compound tag,
+      // but keeps it as is, leading to oh so fun bugs!
+      load(stack.getTagCompound.copy().asInstanceOf[NBTTagCompound])
+    }
+  }
+
+  def save(stack: ItemStack):Unit = {
+    if (!stack.hasTagCompound) {
+      stack.setTagCompound(new NBTTagCompound())
+    }
+    save(stack.getTagCompound)
+  }
+
+  def createItemStack(): ItemStack = {
+    if (itemName == null) ItemStack.EMPTY
+    else {
+      val stack = api.Items.get(itemName).createItemStack(1)
+      save(stack)
+      stack
+    }
+  }
+}

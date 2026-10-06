@@ -32,7 +32,7 @@ version = propertyString('mod_version')
 group = propertyString('root_package')
 
 base {
-    archivesName.set(propertyString('mod_name'))
+    archivesName.set(propertyString('mod_archive_name'))
 }
 
 scala {

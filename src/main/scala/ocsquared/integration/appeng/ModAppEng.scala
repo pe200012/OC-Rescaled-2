@@ -1,0 +1,33 @@
+package ocsquared.integration.appeng
+
+import appeng.api.AEApi
+import li.cil.oc.api
+import li.cil.oc.api.Driver
+import ocsquared.common.tileentity.Print
+import ocsquared.integration.ModProxy
+import ocsquared.integration.Mods
+
+object ModAppEng extends ModProxy {
+  override def getMod: Mods.ClassBasedMod = Mods.AppliedEnergistics2
+
+  override def initialize():Unit = {
+    api.IMC.registerWrenchTool("ocsquared.integration.appeng.EventHandlerAE2.useWrench")
+    api.IMC.registerWrenchToolCheck("ocsquared.integration.appeng.EventHandlerAE2.isWrench")
+
+    AEApi.instance.registries.movable.whiteListTileEntity(classOf[Print])
+
+    Driver.add(DriverController)
+    Driver.add(DriverExportBus)
+    Driver.add(DriverImportBus)
+    Driver.add(DriverPartInterface)
+    Driver.add(DriverBlockInterface)
+
+    Driver.add(new ConverterCellInventory)
+
+    Driver.add(DriverController.Provider)
+    Driver.add(DriverExportBus.Provider)
+    Driver.add(DriverImportBus.Provider)
+    Driver.add(DriverPartInterface.Provider)
+    Driver.add(DriverBlockInterface.Provider)
+  }
+}

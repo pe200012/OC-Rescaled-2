@@ -1,0 +1,80 @@
+package ocsquared.common.tileentity
+
+import java.util
+
+import ocsquared.Constants
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
+import ocsquared.Settings
+import li.cil.oc.api
+import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.network.Node
+import li.cil.oc.api.network.Visibility
+import net.minecraft.util.EnumFacing
+
+import scala.jdk.CollectionConverters.*
+
+class Capacitor extends traits.Environment with DeviceInfo {
+  // Start with maximum theoretical capacity, gets reduced after validation.
+  // This is done so that we don't lose energy while loading.
+  val node = api.Network.newNode(this, Visibility.Network).
+    withConnector(maxCapacity).
+    create()
+
+  private final lazy val deviceInfo = Map(
+    DeviceAttribute.Class -> DeviceClass.Power,
+    DeviceAttribute.Description -> "Battery",
+    DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
+    DeviceAttribute.Product -> "CapBank3x",
+    DeviceAttribute.Capacity -> maxCapacity.toString
+  )
+
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+
+  // ----------------------------------------------------------------------- //
+
+  override def dispose():Unit ={
+    super.dispose()
+    if (isServer) {
+      indirectNeighbors.map(coordinate => {
+        if (getWorld.isBlockLoaded(coordinate)) Option(getWorld.getTileEntity(coordinate))
+        else None
+      }).collect {
+        case Some(capacitor: Capacitor) => capacitor.recomputeCapacity()
+      }
+    }
+  }
+
+  override def onConnect(node: Node):Unit ={
+    super.onConnect(node)
+    if (node == this.node) {
+      recomputeCapacity(updateSecondGradeNeighbors = true)
+    }
+  }
+
+  // ----------------------------------------------------------------------- //
+
+  def recomputeCapacity(updateSecondGradeNeighbors: Boolean = false):Unit ={
+    node.setLocalBufferSize(
+      Settings.get.bufferCapacitor +
+        Settings.get.bufferCapacitorAdjacencyBonus * EnumFacing.values.count(side => {
+          val blockPos = getPos.offset(side)
+          getWorld.isBlockLoaded(blockPos) && (getWorld.getTileEntity(blockPos) match {
+            case capacitor: Capacitor => true
+            case _ => false
+          })
+        }) +
+        Settings.get.bufferCapacitorAdjacencyBonus / 2 * indirectNeighbors.count(blockPos => getWorld.isBlockLoaded(blockPos) && (getWorld.getTileEntity(blockPos) match {
+          case capacitor: Capacitor =>
+            if (updateSecondGradeNeighbors) {
+              capacitor.recomputeCapacity()
+            }
+            true
+          case _ => false
+        })))
+  }
+
+  private def indirectNeighbors = EnumFacing.values.map(getPos.offset(_, 2))
+
+  protected def maxCapacity = Settings.get.bufferCapacitor + Settings.get.bufferCapacitorAdjacencyBonus * 9
+}

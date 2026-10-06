@@ -1,0 +1,156 @@
+package ocsquared.common.template
+
+import ocsquared.Constants
+import ocsquared.Settings
+import li.cil.oc.api
+import li.cil.oc.api.internal
+import ocsquared.common.Slot
+import ocsquared.common.Tier
+import ocsquared.common.item.data.TabletData
+import ocsquared.util.ItemUtils
+import net.minecraft.inventory.IInventory
+import net.minecraft.item.ItemStack
+
+import scala.jdk.CollectionConverters.*
+
+object TabletTemplate extends Template {
+  override protected val suggestedComponents: Array[(String, IInventory => Boolean)] = Array(
+    "BIOS" -> hasComponent(Constants.ItemName.EEPROM),
+    "Keyboard" -> hasComponent(Constants.BlockName.Keyboard),
+    "GraphicsCard" -> ((inventory: IInventory) => Array(
+      Constants.ItemName.APUCreative,
+      Constants.ItemName.APUTier1,
+      Constants.ItemName.APUTier2,
+      Constants.ItemName.GraphicsCardTier1,
+      Constants.ItemName.GraphicsCardTier2,
+      Constants.ItemName.GraphicsCardTier3).
+      exists(name => hasComponent(name)(inventory))),
+    "OS" -> hasFileSystem)
+
+  override protected def hostClass = classOf[internal.Tablet]
+
+  def selectTier1(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.TabletCaseTier1)
+
+  def selectTier2(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.TabletCaseTier2)
+
+  def selectCreative(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.TabletCaseCreative)
+
+  def validate(inventory: IInventory): Array[AnyRef] = validateComputer(inventory)
+
+  def assemble(inventory: IInventory): Array[AnyRef] = {
+    val items = (1 until inventory.getSizeInventory).map(slot => inventory.getStackInSlot(slot))
+    val data = new TabletData()
+    data.tier = ItemUtils.caseTier(inventory.getStackInSlot(0))
+    data.container = items.headOption.getOrElse(ItemStack.EMPTY)
+    data.items = Array(api.Items.get(Constants.BlockName.ScreenTier1).createItemStack(1)) ++ items.drop(if (data.tier == Tier.One) 0 else 1).filter(!_.isEmpty)
+    data.energy = Settings.get.bufferTablet
+    data.maxEnergy = data.energy
+    val stack = api.Items.get(Constants.ItemName.Tablet).createItemStack(1)
+    data.save(stack)
+    val energy = Settings.get.tabletBaseCost + complexity(inventory) * Settings.get.tabletComplexityCost
+
+    Array(stack, Double.box(energy))
+  }
+
+  def selectDisassembler(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.Tablet)
+
+  def disassemble(stack: ItemStack, ingredients: Array[ItemStack]) = {
+    val info = new TabletData(stack)
+    val itemName = Constants.ItemName.TabletCase(info.tier)
+    (Array(api.Items.get(itemName).createItemStack(1), info.container) ++ info.items.filter(!_.isEmpty).drop(1) /* Screen */).filter(!_.isEmpty)
+  }
+
+  def register():Unit = {
+    // Tier 1
+    api.IMC.registerAssemblerTemplate(
+      "Tablet (Tier 1)",
+      "ocsquared.common.template.TabletTemplate.selectTier1",
+      "ocsquared.common.template.TabletTemplate.validate",
+      "ocsquared.common.template.TabletTemplate.assemble",
+      hostClass,
+      null,
+      Array(
+        Tier.Three,
+        Tier.Two,
+        Tier.One
+      ),
+      Iterable(
+        (Slot.Card, Tier.Two),
+        (Slot.Card, Tier.Two),
+        null,
+        (Slot.CPU, Tier.Two),
+        (Slot.Memory, Tier.Two),
+        (Slot.Memory, Tier.Two),
+        (Slot.EEPROM, Tier.Any),
+        (Slot.HDD, Tier.Two)
+      ).map(toPair).asJava)
+
+    // Tier 2
+    api.IMC.registerAssemblerTemplate(
+      "Tablet (Tier 2)",
+      "ocsquared.common.template.TabletTemplate.selectTier2",
+      "ocsquared.common.template.TabletTemplate.validate",
+      "ocsquared.common.template.TabletTemplate.assemble",
+      hostClass,
+      Array(
+        Tier.Two
+      ),
+      Array(
+        Tier.Three,
+        Tier.Two,
+        Tier.Two
+      ),
+      Iterable(
+        (Slot.Card, Tier.Three),
+        (Slot.Card, Tier.Two),
+        null,
+        (Slot.CPU, Tier.Three),
+        (Slot.Memory, Tier.Two),
+        (Slot.Memory, Tier.Two),
+        (Slot.EEPROM, Tier.Any),
+        (Slot.HDD, Tier.Two)
+      ).map(toPair).asJava)
+
+    // Creative
+    api.IMC.registerAssemblerTemplate(
+      "Tablet (Creative)",
+      "ocsquared.common.template.TabletTemplate.selectCreative",
+      "ocsquared.common.template.TabletTemplate.validate",
+      "ocsquared.common.template.TabletTemplate.assemble",
+      hostClass,
+      Array(
+        Tier.Three
+      ),
+      Array(
+        Tier.Three,
+        Tier.Three,
+        Tier.Three,
+        Tier.Three,
+        Tier.Three,
+        Tier.Three,
+        Tier.Three,
+        Tier.Three,
+        Tier.Three
+      ),
+      Iterable(
+        (Slot.Card, Tier.Three),
+        (Slot.Card, Tier.Three),
+        (Slot.Card, Tier.Three),
+        (Slot.CPU, Tier.Three),
+        (Slot.Memory, Tier.Three),
+        (Slot.Memory, Tier.Three),
+        (Slot.EEPROM, Tier.Any),
+        (Slot.HDD, Tier.Three)
+      ).map(toPair).asJava)
+
+    // Disassembler
+    api.IMC.registerDisassemblerTemplate(
+      "Tablet",
+      "ocsquared.common.template.TabletTemplate.selectDisassembler",
+      "ocsquared.common.template.TabletTemplate.disassemble")
+  }
+
+  override protected def maxComplexity(inventory: IInventory) = super.maxComplexity(inventory) / 2 + 5
+
+  override protected def caseTier(inventory: IInventory) = ItemUtils.caseTier(inventory.getStackInSlot(0))
+}

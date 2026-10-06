@@ -1,4 +1,4 @@
-import li.cil.oc.util.RTree
+import ocsquared.util.RTree
 import org.scalatest.funspec.AnyFunSpec
 
 import scala.collection.mutable

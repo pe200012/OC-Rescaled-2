@@ -1,0 +1,382 @@
+package ocsquared.integration.opencomputers
+
+import ocsquared.{Constants, OpenComputers, Settings}
+
+import li.cil.oc.api
+import li.cil.oc.api.detail.ItemInfo
+import li.cil.oc.api.driver.item.Chargeable
+import li.cil.oc.api.internal
+import li.cil.oc.api.internal.Wrench
+import li.cil.oc.api.manual.PathProvider
+import li.cil.oc.api.prefab.{ItemStackTabIconRenderer, ResourceContentProvider, TextureTabIconRenderer}
+import ocsquared.client.Textures
+import ocsquared.client.renderer.markdown.segment.render.{BlockImageProvider, ItemImageProvider, OreDictImageProvider, TextureImageProvider}
+import ocsquared.common.{EventHandler, Loot, SaveHandler}
+import ocsquared.common.asm.SimpleComponentTickHandler
+import ocsquared.common.block.SimpleBlock
+import ocsquared.common.event.*
+import ocsquared.common.item.{Analyzer, Delegator, RedstoneCard, Tablet}
+import ocsquared.common.nanomachines.provider.*
+import ocsquared.common.template.*
+import ocsquared.integration.appeng.AE2EventHandler
+import ocsquared.integration.ic2.IC2EventHandler
+import ocsquared.integration.{ModProxy, Mods}
+import ocsquared.integration.util.{BundledRedstone, ItemBlacklist}
+import ocsquared.server.network.{Waypoints, WirelessNetwork}
+import ocsquared.util.Color
+import net.minecraft.entity.player.EntityPlayer
+import net.minecraft.item.ItemStack
+import net.minecraft.util.math.BlockPos
+import net.minecraft.world.World
+import net.minecraftforge.common.{ForgeChunkManager, MinecraftForge}
+import net.minecraftforge.fml.common.Loader
+
+object ModOpenComputers extends ModProxy {
+  override def getMod: Mods.SimpleMod = Mods.OpenComputers
+
+  override def initialize():Unit = {
+    ItemBlacklist.apply()
+
+    DroneTemplate.register()
+    MicrocontrollerTemplate.register()
+    NavigationUpgradeTemplate.register()
+    RobotTemplate.register()
+    ServerTemplate.register()
+    TabletTemplate.register()
+    TemplateBlacklist.register()
+
+    api.IMC.registerWrenchTool("ocsquared.integration.opencomputers.ModOpenComputers.useWrench")
+    api.IMC.registerWrenchToolCheck("ocsquared.integration.opencomputers.ModOpenComputers.isWrench")
+    api.IMC.registerItemCharge(
+      "OpenComputers",
+      "ocsquared.integration.opencomputers.ModOpenComputers.canCharge",
+      "ocsquared.integration.opencomputers.ModOpenComputers.charge")
+
+    api.IMC.registerInkProvider("ocsquared.integration.opencomputers.ModOpenComputers.inkCartridgeInkProvider")
+    api.IMC.registerInkProvider("ocsquared.integration.opencomputers.ModOpenComputers.dyeInkProvider")
+
+    ForgeChunkManager.setForcedChunkLoadingCallback(OpenComputers, ChunkloaderUpgradeHandler)
+
+    MinecraftForge.EVENT_BUS.register(EventHandler)
+    if (Loader.isModLoaded(Mods.IDs.AppliedEnergistics2))
+      MinecraftForge.EVENT_BUS.register(AE2EventHandler)
+    if (Loader.isModLoaded(Mods.IDs.IndustrialCraft2))
+      MinecraftForge.EVENT_BUS.register(IC2EventHandler)
+    MinecraftForge.EVENT_BUS.register(NanomachinesHandler.Common)
+    MinecraftForge.EVENT_BUS.register(SimpleComponentTickHandler.Instance)
+    MinecraftForge.EVENT_BUS.register(Tablet)
+
+    MinecraftForge.EVENT_BUS.register(Analyzer)
+    MinecraftForge.EVENT_BUS.register(AngelUpgradeHandler)
+    MinecraftForge.EVENT_BUS.register(BlockChangeHandler)
+    MinecraftForge.EVENT_BUS.register(ChunkloaderUpgradeHandler)
+    MinecraftForge.EVENT_BUS.register(ExperienceUpgradeHandler)
+    MinecraftForge.EVENT_BUS.register(FileSystemAccessHandler)
+    MinecraftForge.EVENT_BUS.register(HoverBootsHandler)
+    MinecraftForge.EVENT_BUS.register(Loot)
+    MinecraftForge.EVENT_BUS.register(NanomachinesHandler.Common)
+    MinecraftForge.EVENT_BUS.register(NetworkActivityHandler)
+    MinecraftForge.EVENT_BUS.register(RobotCommonHandler)
+    MinecraftForge.EVENT_BUS.register(SaveHandler)
+    MinecraftForge.EVENT_BUS.register(Tablet)
+    MinecraftForge.EVENT_BUS.register(Waypoints)
+    MinecraftForge.EVENT_BUS.register(WirelessNetwork)
+    MinecraftForge.EVENT_BUS.register(WirelessNetworkCardHandler)
+    MinecraftForge.EVENT_BUS.register(ocsquared.client.ComponentTracker)
+    MinecraftForge.EVENT_BUS.register(ocsquared.server.ComponentTracker)
+
+    api.Driver.add(ConverterNanomachines)
+    api.Driver.add(ConverterLinkedCard)
+
+    api.Driver.add(DriverAPU)
+    api.Driver.add(DriverComponentBus)
+    api.Driver.add(DriverCPU)
+    api.Driver.add(DriverDataCard)
+    api.Driver.add(DriverDebugCard)
+    api.Driver.add(DriverEEPROM)
+    api.Driver.add(DriverFileSystem)
+    api.Driver.add(DriverGraphicsCard)
+    api.Driver.add(DriverInternetCard)
+    api.Driver.add(DriverLinkedCard)
+    api.Driver.add(DriverLootDisk)
+    api.Driver.add(DriverMemory)
+    api.Driver.add(DriverNetworkCard)
+    api.Driver.add(DriverKeyboard)
+    api.Driver.add(DriverRedstoneCard)
+    api.Driver.add(DriverTablet)
+    api.Driver.add(DriverWirelessNetworkCard)
+
+    api.Driver.add(DriverContainerCard)
+    api.Driver.add(DriverContainerFloppy)
+    api.Driver.add(DriverContainerUpgrade)
+
+    api.Driver.add(DriverGeolyzer)
+    api.Driver.add(DriverMotionSensor)
+    api.Driver.add(DriverScreen)
+    api.Driver.add(DriverTransposer)
+
+    api.Driver.add(DriverDiskDriveMountable)
+    api.Driver.add(DriverServer)
+    api.Driver.add(DriverTerminalServer)
+
+    api.Driver.add(DriverUpgradeAngel)
+    api.Driver.add(DriverUpgradeBarcodeReader)
+    api.Driver.add(DriverUpgradeBattery)
+    api.Driver.add(DriverUpgradeChunkloader)
+    api.Driver.add(DriverUpgradeCrafting)
+    api.Driver.add(DriverUpgradeDatabase)
+    api.Driver.add(DriverUpgradeExperience)
+    api.Driver.add(DriverUpgradeGenerator)
+    api.Driver.add(DriverUpgradeHover)
+    api.Driver.add(DriverUpgradeInventory)
+    api.Driver.add(DriverUpgradeInventoryController)
+    api.Driver.add(DriverUpgradeLeash)
+    api.Driver.add(DriverUpgradeNavigation)
+    api.Driver.add(DriverUpgradePiston)
+    api.Driver.add(DriverUpgradeSign)
+    api.Driver.add(DriverUpgradeSolarGenerator)
+    api.Driver.add(DriverUpgradeStickyPiston)
+    api.Driver.add(DriverUpgradeTank)
+    api.Driver.add(DriverUpgradeTankController)
+    api.Driver.add(DriverUpgradeTractorBeam)
+    api.Driver.add(DriverUpgradeTrading)
+    api.Driver.add(DriverUpgradeMF)
+
+    api.Driver.add(DriverAPU.Provider)
+    api.Driver.add(DriverDataCard.Provider)
+    api.Driver.add(DriverDebugCard.Provider)
+    api.Driver.add(DriverEEPROM.Provider)
+    api.Driver.add(DriverGraphicsCard.Provider)
+    api.Driver.add(DriverInternetCard.Provider)
+    api.Driver.add(DriverLinkedCard.Provider)
+    api.Driver.add(DriverNetworkCard.Provider)
+    api.Driver.add(DriverRedstoneCard.Provider)
+    api.Driver.add(DriverWirelessNetworkCard.Provider)
+
+    api.Driver.add(DriverGeolyzer.Provider)
+    api.Driver.add(DriverMotionSensor.Provider)
+    api.Driver.add(DriverScreen.Provider)
+    api.Driver.add(DriverTransposer.Provider)
+
+    api.Driver.add(DriverUpgradeChunkloader.Provider)
+    api.Driver.add(DriverUpgradeCrafting.Provider)
+    api.Driver.add(DriverUpgradeDatabase.Provider)
+    api.Driver.add(DriverUpgradeExperience.Provider)
+    api.Driver.add(DriverUpgradeGenerator.Provider)
+    api.Driver.add(DriverUpgradeInventoryController.Provider)
+    api.Driver.add(DriverUpgradeLeash.Provider)
+    api.Driver.add(DriverUpgradeNavigation.Provider)
+    api.Driver.add(DriverUpgradePiston.Provider)
+    api.Driver.add(DriverUpgradeSign.Provider)
+    api.Driver.add(DriverUpgradeStickyPiston.Provider)
+    api.Driver.add(DriverUpgradeTankController.Provider)
+    api.Driver.add(DriverUpgradeTractorBeam.Provider)
+    api.Driver.add(DriverUpgradeMF.Provider)
+
+    api.Driver.add(EnvironmentProviderBlocks)
+
+    api.Driver.add(InventoryProviderDatabase)
+    api.Driver.add(InventoryProviderServer)
+
+    blacklistHost(classOf[internal.Adapter],
+      Constants.BlockName.Geolyzer,
+      Constants.BlockName.MotionSensor,
+      Constants.BlockName.Keyboard,
+      Constants.BlockName.ScreenTier1,
+      Constants.BlockName.ScreenTier2,
+      Constants.BlockName.ScreenTier3,
+      Constants.BlockName.Transposer,
+      Constants.BlockName.CarpetedCapacitor,
+      Constants.ItemName.Analyzer,
+      Constants.ItemName.AngelUpgrade,
+      Constants.ItemName.BatteryUpgradeTier1,
+      Constants.ItemName.BatteryUpgradeTier2,
+      Constants.ItemName.BatteryUpgradeTier3,
+      Constants.ItemName.ChunkloaderUpgrade,
+      Constants.ItemName.CraftingUpgrade,
+      Constants.ItemName.ExperienceUpgrade,
+      Constants.ItemName.GeneratorUpgrade,
+      Constants.ItemName.HoverUpgradeTier1,
+      Constants.ItemName.HoverUpgradeTier2,
+      Constants.ItemName.InventoryUpgrade,
+      Constants.ItemName.NavigationUpgrade,
+      Constants.ItemName.PistonUpgrade,
+      Constants.ItemName.StickyPistonUpgrade,
+      Constants.ItemName.SolarGeneratorUpgrade,
+      Constants.ItemName.TankUpgrade,
+      Constants.ItemName.TractorBeamUpgrade,
+      Constants.ItemName.LeashUpgrade,
+      Constants.ItemName.TradingUpgrade)
+    blacklistHost(classOf[internal.Drone],
+      Constants.BlockName.Keyboard,
+      Constants.BlockName.ScreenTier1,
+      Constants.BlockName.ScreenTier2,
+      Constants.BlockName.ScreenTier3,
+      Constants.BlockName.Transposer,
+      Constants.BlockName.CarpetedCapacitor,
+      Constants.ItemName.Analyzer,
+      Constants.ItemName.APUTier1,
+      Constants.ItemName.APUTier2,
+      Constants.ItemName.GraphicsCardTier1,
+      Constants.ItemName.GraphicsCardTier2,
+      Constants.ItemName.GraphicsCardTier3,
+      Constants.ItemName.NetworkCard,
+      Constants.ItemName.RedstoneCardTier1,
+      Constants.ItemName.CraftingUpgrade,
+      Constants.ItemName.HoverUpgradeTier1,
+      Constants.ItemName.HoverUpgradeTier2)
+    blacklistHost(classOf[internal.Microcontroller],
+      Constants.BlockName.Keyboard,
+      Constants.BlockName.ScreenTier1,
+      Constants.BlockName.ScreenTier2,
+      Constants.BlockName.ScreenTier3,
+      Constants.BlockName.CarpetedCapacitor,
+      Constants.ItemName.Analyzer,
+      Constants.ItemName.APUTier1,
+      Constants.ItemName.APUTier2,
+      Constants.ItemName.GraphicsCardTier1,
+      Constants.ItemName.GraphicsCardTier2,
+      Constants.ItemName.GraphicsCardTier3,
+      Constants.ItemName.AngelUpgrade,
+      Constants.ItemName.CraftingUpgrade,
+      Constants.ItemName.DatabaseUpgradeTier1,
+      Constants.ItemName.DatabaseUpgradeTier2,
+      Constants.ItemName.DatabaseUpgradeTier3,
+      Constants.ItemName.ExperienceUpgrade,
+      Constants.ItemName.GeneratorUpgrade,
+      Constants.ItemName.HoverUpgradeTier1,
+      Constants.ItemName.HoverUpgradeTier2,
+      Constants.ItemName.InventoryUpgrade,
+      Constants.ItemName.InventoryControllerUpgrade,
+      Constants.ItemName.NavigationUpgrade,
+      Constants.ItemName.TankUpgrade,
+      Constants.ItemName.TankControllerUpgrade,
+      Constants.ItemName.TractorBeamUpgrade,
+      Constants.ItemName.LeashUpgrade,
+      Constants.ItemName.TradingUpgrade)
+    blacklistHost(classOf[internal.Robot],
+      Constants.BlockName.Transposer,
+      Constants.BlockName.CarpetedCapacitor,
+      Constants.ItemName.Analyzer,
+      Constants.ItemName.LeashUpgrade)
+    blacklistHost(classOf[internal.Tablet],
+      Constants.BlockName.ScreenTier1,
+      Constants.BlockName.ScreenTier2,
+      Constants.BlockName.ScreenTier3,
+      Constants.BlockName.Transposer,
+      Constants.BlockName.CarpetedCapacitor,
+      Constants.ItemName.NetworkCard,
+      Constants.ItemName.RedstoneCardTier1,
+      Constants.ItemName.AngelUpgrade,
+      Constants.ItemName.ChunkloaderUpgrade,
+      Constants.ItemName.CraftingUpgrade,
+      Constants.ItemName.DatabaseUpgradeTier1,
+      Constants.ItemName.DatabaseUpgradeTier2,
+      Constants.ItemName.DatabaseUpgradeTier3,
+      Constants.ItemName.ExperienceUpgrade,
+      Constants.ItemName.GeneratorUpgrade,
+      Constants.ItemName.HoverUpgradeTier1,
+      Constants.ItemName.HoverUpgradeTier2,
+      Constants.ItemName.InventoryUpgrade,
+      Constants.ItemName.InventoryControllerUpgrade,
+      Constants.ItemName.TankUpgrade,
+      Constants.ItemName.TankControllerUpgrade,
+      Constants.ItemName.LeashUpgrade,
+      Constants.ItemName.TradingUpgrade)
+
+    // Note: kinda nasty, but we have to check for availability for extended
+    // redstone mods after integration init, so we have to set tier two
+    // redstone card availability here, after all other mods were inited.
+    if (BundledRedstone.isAvailable) {
+      OpenComputers.log.info("Found extended redstone mods, enabling tier two redstone card.")
+      Delegator.subItem(api.Items.get(Constants.ItemName.RedstoneCardTier2).createItemStack(1)) match {
+        case Some(redstone: RedstoneCard) => redstone.showInItemList = true
+        case _ =>
+      }
+    }
+
+    api.Manual.addProvider(DefinitionPathProvider)
+    api.Manual.addProvider(new ResourceContentProvider(Settings.resourceDomain, "doc/"))
+    api.Manual.addProvider("", TextureImageProvider)
+    api.Manual.addProvider("item", ItemImageProvider)
+    api.Manual.addProvider("block", BlockImageProvider)
+    api.Manual.addProvider("oredict", OreDictImageProvider)
+
+    api.Manual.addTab(new TextureTabIconRenderer(Textures.GUI.ManualHome), "oc:gui.Manual.Home", "%LANGUAGE%/index.md")
+    api.Manual.addTab(new ItemStackTabIconRenderer(api.Items.get("case1").createItemStack(1)), "oc:gui.Manual.Blocks", "%LANGUAGE%/block/index.md")
+    api.Manual.addTab(new ItemStackTabIconRenderer(api.Items.get("cpu1").createItemStack(1)), "oc:gui.Manual.Items", "%LANGUAGE%/item/index.md")
+
+    api.Nanomachines.addProvider(DisintegrationProvider)
+    api.Nanomachines.addProvider(HungryProvider)
+    api.Nanomachines.addProvider(ParticleProvider)
+    api.Nanomachines.addProvider(PotionProvider)
+    api.Nanomachines.addProvider(MagnetProvider)
+  }
+
+  def useWrench(player: EntityPlayer, pos: BlockPos, changeDurability: Boolean): Boolean = {
+    player.getHeldItemMainhand.getItem match {
+      case wrench: Wrench => wrench.useWrenchOnBlock(player, player.getEntityWorld, pos, !changeDurability)
+      case _ => false
+    }
+  }
+
+  def isWrench(stack: ItemStack): Boolean = stack.getItem.isInstanceOf[Wrench]
+
+  def canCharge(stack: ItemStack): Boolean = stack.getItem match {
+    case chargeable: Chargeable => chargeable.canCharge(stack)
+    case _ => false
+  }
+
+  def charge(stack: ItemStack, amount: Double, simulate: Boolean): Double = {
+    stack.getItem match {
+      case chargeable: Chargeable => chargeable.charge(stack, amount, simulate)
+      case _ => amount
+    }
+  }
+
+  def inkCartridgeInkProvider(stack: ItemStack): Int = {
+    if (api.Items.get(stack) == api.Items.get(Constants.ItemName.InkCartridge))
+      Settings.get.printInkValue
+    else
+      0
+  }
+
+  def dyeInkProvider(stack: ItemStack): Int = {
+    if (Color.isDye(stack))
+      Settings.get.printInkValue / 10
+    else
+      0
+  }
+
+  private def blacklistHost(host: Class[?], itemNames: String*):Unit = {
+    for (itemName <- itemNames) try {
+      api.IMC.blacklistHost(itemName, host, api.Items.get(itemName).createItemStack(1))
+    } catch {
+      case t: Throwable => OpenComputers.log.warn(s"Error blacklisting '$itemName' for '${host.getSimpleName}.", t)
+    }
+  }
+
+  object DefinitionPathProvider extends PathProvider {
+    private final val Blacklist = Set(
+      Constants.ItemName.Debugger,
+      Constants.ItemName.DiamondChip,
+      Constants.BlockName.Endstone
+    )
+
+    override def pathFor(stack: ItemStack): String = Option(api.Items.get(stack)) match {
+      case Some(definition) => checkBlacklisted(definition)
+      case _ => null
+    }
+
+    override def pathFor(world: World, pos: BlockPos): String = world.getBlockState(pos).getBlock match {
+      case block: SimpleBlock => checkBlacklisted(api.Items.get(new ItemStack(block)))
+      case _ => null
+    }
+
+    private def checkBlacklisted(info: ItemInfo): String =
+      if (info == null || Blacklist.contains(info.name)) null
+      else if (info.block != null) "%LANGUAGE%/block/" + info.name + ".md"
+      else "%LANGUAGE%/item/" + info.name + ".md"
+  }
+
+}

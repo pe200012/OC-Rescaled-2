@@ -1,6 +1,6 @@
-![Welcome to OpenComputers](assets/misc/banner.png)
+# OpenComputers Rescaled²
 
-OpenComputers is a Minecraft mod that adds programmable computers and robots to the game. The built-in computer implementation uses Lua 5.2 and is fully persistent. This means programs will continue running across reloads. For more information, please [see the wiki][wiki]. Feel invited to visit the [community forums][forums] or drop by in the [IRC channel #oc on esper.net][irc].
+A fork of [OpenComputers Rescaled](https://github.com/kappa-maintainer/OpenComputers) for Minecraft 1.12.2 on Cleanroom that replaces Lua with an emulated 64-bit RISC-V machine (OpenComputers II's [Sedna](https://github.com/fnuecke/sedna)). Computers, servers, robots and tablets run Linux; drones and microcontrollers run bare-metal programs from their EEPROM. Mod id and API (`li.cil.oc.api`) stay those of OpenComputers, so other mods' OpenComputers drivers keep working.
 
 A few useful links:
 * [Minecraft Forum Thread][mcf]

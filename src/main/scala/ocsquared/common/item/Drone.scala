@@ -1,0 +1,68 @@
+package ocsquared.common.item
+
+import java.util
+
+import ocsquared.Constants
+import ocsquared.Settings
+import ocsquared.client.KeyBindings
+import ocsquared.client.renderer.block.DroneModel
+import ocsquared.common.entity
+import ocsquared.common.item.data.DroneData
+import ocsquared.integration.util.ItemBlacklist
+import ocsquared.server.agent
+import ocsquared.util.BlockPosition
+import ocsquared.util.Rarity
+import net.minecraft.client.renderer.block.model.ModelResourceLocation
+import net.minecraft.entity.player.EntityPlayer
+import net.minecraft.item.ItemStack
+import net.minecraft.util.EnumFacing
+import net.minecraftforge.client.event.ModelBakeEvent
+import net.minecraftforge.fml.relauncher.Side
+import net.minecraftforge.fml.relauncher.SideOnly
+
+class Drone(val parent: Delegator) extends traits.Delegate with CustomModel {
+  ItemBlacklist.hide(this)
+
+  showInItemList = false
+
+  @SideOnly(Side.CLIENT)
+  override def getModelLocation(stack: ItemStack) = new ModelResourceLocation(Settings.resourceDomain + ":" + Constants.ItemName.Drone, "inventory")
+
+  @SideOnly(Side.CLIENT)
+  override def bakeModels(bakeEvent: ModelBakeEvent): Unit = {
+    bakeEvent.getModelRegistry.putObject(getModelLocation(createItemStack()), DroneModel)
+  }
+
+  override protected def tooltipExtended(stack: ItemStack, tooltip: util.List[String]): Unit = {
+    if (KeyBindings.showExtendedTooltips) {
+      val info = new DroneData(stack)
+      for (component <- info.components if !component.isEmpty) {
+        tooltip.add("- " + component.getDisplayName)
+      }
+    }
+  }
+
+  override def rarity(stack: ItemStack) = {
+    val data = new DroneData(stack)
+    Rarity.byTier(data.tier)
+  }
+
+  override def onItemUse(stack: ItemStack, player: EntityPlayer, position: BlockPosition, side: EnumFacing, hitX: Float, hitY: Float, hitZ: Float) = {
+    val world = position.world.get
+    if (!world.isRemote) {
+      val drone = new entity.Drone(world)
+      player match {
+        case fakePlayer: agent.Player =>
+          drone.ownerName = fakePlayer.agent.ownerName
+          drone.ownerUUID = fakePlayer.agent.ownerUUID
+        case _ =>
+          drone.ownerName = player.getName
+          drone.ownerUUID = player.getGameProfile.getId
+      }
+      drone.initializeAfterPlacement(stack, player, position.offset(hitX * 1.1f, hitY * 1.1f, hitZ * 1.1f))
+      world.spawnEntity(drone)
+    }
+    stack.shrink(1)
+    true
+  }
+}

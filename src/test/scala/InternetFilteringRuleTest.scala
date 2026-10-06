@@ -1,6 +1,6 @@
 import com.typesafe.config.{Config, ConfigFactory}
-import li.cil.oc.Settings
-import li.cil.oc.server.component.InternetCard
+import ocsquared.Settings
+import ocsquared.server.component.InternetCard
 import org.scalatest.funspec.AnyFunSpec
 
 import java.lang.System

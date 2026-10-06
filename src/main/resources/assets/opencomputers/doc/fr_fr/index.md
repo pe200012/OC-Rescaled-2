@@ -1,6 +1,6 @@
 # Manuel d'OpenComputers
 
-OpenComputers est un mod qui ajoute au jeu des [ordinateurs](general/computer.md), des [serveurs](item/server1.md), des [robots](block/robot.md), et des [drones](item/drone.md) persistants, modulaires et très configurables. Dans cette version, chaque appareil est une machine RISC-V 64 bits émulée : les ordinateurs, les serveurs, les robots et les tablettes exécutent [Linux](general/linux.md), tandis que les drones et les micro-contrôleurs exécutent de petits programmes bare-metal depuis leur [EEPROM](item/eeprom.md). Vous les programmez en micropython ou en C, voir [programmation](general/programming.md).
+OpenComputers Rescaled² est un mod qui ajoute au jeu des [ordinateurs](general/computer.md), des [serveurs](item/server1.md), des [robots](block/robot.md), et des [drones](item/drone.md) persistants, modulaires et très configurables. Dans cette version, chaque appareil est une machine RISC-V 64 bits émulée : les ordinateurs, les serveurs, les robots et les tablettes exécutent [Linux](general/linux.md), tandis que les drones et les micro-contrôleurs exécutent de petits programmes bare-metal depuis leur [EEPROM](item/eeprom.md). Vous les programmez en micropython ou en C, voir [programmation](general/programming.md).
 
 Pour apprendre à utiliser ce manuel, allez sur [la page parlant du manuel](item/manual.md) (Ce texte en vert est un lien, vous pouvez cliquer dessus).
 

@@ -1,0 +1,30 @@
+package ocsquared.common
+
+import ocsquared.Settings
+import li.cil.oc.api.network.EnvironmentHost
+import ocsquared.server.PacketSender
+import net.minecraft.util.ResourceLocation
+import net.minecraft.util.SoundCategory
+
+import scala.collection.mutable
+
+object Sound {
+  val globalTimeouts = mutable.WeakHashMap.empty[EnvironmentHost, mutable.Map[String, Long]]
+
+  def play(host: EnvironmentHost, name: String): Unit = this.synchronized {
+    globalTimeouts.get(host) match {
+      case Some(hostTimeouts) if hostTimeouts.getOrElse(name, 0L) > System.currentTimeMillis() => // Cooldown.
+      case _ =>
+        PacketSender.sendSound(host.world, host.xPosition, host.yPosition, host.zPosition, new ResourceLocation(Settings.resourceDomain + ":" + name), SoundCategory.BLOCKS, 15 * Settings.get.soundVolume)
+        globalTimeouts.getOrElseUpdate(host, mutable.Map.empty) += name -> (System.currentTimeMillis() + 500)
+    }
+  }
+
+  def playDiskInsert(host: EnvironmentHost):Unit = {
+    play(host, "floppy_insert")
+  }
+
+  def playDiskEject(host: EnvironmentHost):Unit = {
+    play(host, "floppy_eject")
+  }
+}

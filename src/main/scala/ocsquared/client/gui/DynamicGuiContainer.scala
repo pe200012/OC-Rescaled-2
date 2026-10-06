@@ -1,0 +1,198 @@
+package ocsquared.client.gui
+
+import ocsquared.Localization
+import ocsquared.client.Textures
+import ocsquared.common
+import ocsquared.common.container.ComponentSlot
+import ocsquared.common.container.Player
+import ocsquared.integration.Mods
+import ocsquared.integration.jei.ModJEI
+import ocsquared.integration.util.ItemSearch
+import ocsquared.util.RenderState
+import ocsquared.util.StackOption
+import ocsquared.util.StackOption.*
+import net.minecraft.client.gui.Gui
+import net.minecraft.client.renderer.GlStateManager
+import net.minecraft.client.renderer.Tessellator
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats
+import net.minecraft.inventory.Container
+import net.minecraft.inventory.Slot
+import net.minecraft.item.ItemStack
+import net.minecraftforge.fml.common.Optional
+import org.lwjgl.opengl.GL11
+
+import scala.jdk.CollectionConverters.*
+
+
+
+abstract class DynamicGuiContainer[C <: Container](container: C) extends CustomGuiContainer(container) {
+  protected var hoveredSlot: Option[Slot] = None
+
+  protected var hoveredStackNEI: StackOption = EmptyStack
+
+  protected def drawSecondaryForegroundLayer(mouseX: Int, mouseY: Int):Unit = {
+    fontRenderer.drawString(
+      Localization.localizeImmediately("container.inventory"),
+      8, ySize - 96 + 2, 0x404040)
+  }
+
+  override protected def drawGuiContainerForegroundLayer(mouseX: Int, mouseY: Int):Unit = {
+    RenderState.pushAttrib()
+
+    drawSecondaryForegroundLayer(mouseX, mouseY)
+
+    for (slot <- 0 until inventorySlots.inventorySlots.size()) {
+      drawSlotHighlight(inventorySlots.inventorySlots.get(slot))
+    }
+
+    RenderState.popAttrib()
+  }
+
+  protected def drawSecondaryBackgroundLayer():Unit = {}
+
+  override protected def drawGuiContainerBackgroundLayer(dt: Float, mouseX: Int, mouseY: Int):Unit = {
+    GlStateManager.color(1, 1, 1, 1)
+    Textures.bind(Textures.GUI.Background)
+    drawTexturedModalRect(guiLeft, guiTop, 0, 0, xSize, ySize)
+    drawSecondaryBackgroundLayer()
+
+    RenderState.makeItBlend()
+    GlStateManager.disableLighting()
+
+    drawInventorySlots()
+  }
+
+  protected def drawInventorySlots(): Unit = {
+    GlStateManager.pushMatrix()
+    GlStateManager.translate(guiLeft.toFloat, guiTop.toFloat, 0)
+    GlStateManager.disableDepth()
+    for (slot <- 0 until inventorySlots.inventorySlots.size()) {
+      drawSlotInventory(inventorySlots.inventorySlots.get(slot))
+    }
+    GlStateManager.enableDepth()
+    GlStateManager.popMatrix()
+    RenderState.makeItBlend()
+  }
+
+  override def drawScreen(mouseX: Int, mouseY: Int, dt: Float):Unit = {
+    hoveredSlot = inventorySlots.inventorySlots.asScala.collectFirst {
+      case slot: Slot if isPointInRegion(slot.xPos, slot.yPos, 16, 16, mouseX, mouseY) => slot
+    }
+    hoveredStackNEI = ItemSearch.hoveredStack(this, mouseX, mouseY)
+
+    super.drawScreen(mouseX, mouseY, dt)
+
+    if (Mods.JustEnoughItems.isModAvailable) {
+      drawJEIHighlights()
+    }
+  }
+
+  protected def drawSlotInventory(slot: Slot):Unit = {
+    GlStateManager.enableBlend()
+    slot match {
+      case component: ComponentSlot if component.slot == common.Slot.None || component.tier == common.Tier.None =>
+        if (!slot.getHasStack && slot.xPos >= 0 && slot.yPos >= 0 && component.tierIcon != null) {
+          drawDisabledSlot(component)
+        }
+      case _ =>
+        zLevel += 1
+        if (!isInPlayerInventory(slot)) {
+          drawSlotBackground(slot.xPos - 1, slot.yPos - 1)
+        }
+        if (!slot.getHasStack) {
+          slot match {
+            case component: ComponentSlot =>
+              if (component.tierIcon != null) {
+                Textures.bind(component.tierIcon)
+                Gui.drawModalRectWithCustomSizedTexture(slot.xPos, slot.yPos, 0, 0, 16, 16, 16, 16)
+              }
+              if (component.hasBackground) {
+                Textures.bind(slot.getBackgroundLocation)
+                Gui.drawModalRectWithCustomSizedTexture(slot.xPos, slot.yPos, 0, 0, 16, 16, 16, 16)
+              }
+            case _ =>
+          }
+          zLevel -= 1
+        }
+    }
+    GlStateManager.disableBlend()
+  }
+
+  protected def drawSlotHighlight(slot: Slot):Unit = {
+    if (mc.player.inventory.getItemStack.isEmpty) slot match {
+      case component: ComponentSlot if component.slot == common.Slot.None || component.tier == common.Tier.None => // Ignore.
+      case _ =>
+        val currentIsInPlayerInventory = isInPlayerInventory(slot)
+        val drawHighlight = hoveredSlot match {
+          case Some(hovered) =>
+            val hoveredIsInPlayerInventory = isInPlayerInventory(hovered)
+            (currentIsInPlayerInventory != hoveredIsInPlayerInventory) &&
+              ((currentIsInPlayerInventory && slot.getHasStack && isSelectiveSlot(hovered) && hovered.isItemValid(slot.getStack)) ||
+                (hoveredIsInPlayerInventory && hovered.getHasStack && isSelectiveSlot(slot) && slot.isItemValid(hovered.getStack)))
+          case _ => hoveredStackNEI match {
+            case SomeStack(stack) => !currentIsInPlayerInventory && isSelectiveSlot(slot) && slot.isItemValid(stack)
+            case _ => false
+          }
+        }
+        if (drawHighlight) {
+          zLevel += 100
+          drawGradientRect(
+            slot.xPos, slot.yPos,
+            slot.xPos + 16, slot.yPos + 16,
+            0x80FFFFFF, 0x80FFFFFF)
+          zLevel -= 100
+        }
+    }
+  }
+
+  private def isSelectiveSlot(slot: Slot) = slot match {
+    case component: ComponentSlot => component.slot != common.Slot.Any && component.slot != common.Slot.Tool
+    case _ => false
+  }
+
+  protected def drawDisabledSlot(slot: ComponentSlot):Unit = {
+    GlStateManager.color(1, 1, 1, 1)
+    Textures.bind(slot.tierIcon)
+    Gui.drawModalRectWithCustomSizedTexture(slot.xPos, slot.yPos, 0, 0, 16, 16, 16, 16)
+  }
+
+  protected def drawSlotBackground(x: Int, y: Int):Unit = {
+    GlStateManager.color(1, 1, 1, 1)
+    Textures.bind(Textures.GUI.Slot)
+    val t = Tessellator.getInstance
+    val r = t.getBuffer
+    r.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX)
+    r.pos(x, y + 18, zLevel + 1).tex(0, 1).endVertex()
+    r.pos(x + 18, y + 18, zLevel + 1).tex(1, 1).endVertex()
+    r.pos(x + 18, y, zLevel + 1).tex(1, 0).endVertex()
+    r.pos(x, y, zLevel + 1).tex(0, 0).endVertex()
+    t.draw()
+  }
+
+  private def isInPlayerInventory(slot: Slot) = container match {
+    case player: Player => slot.inventory == player.playerInventory
+    case _ => false
+  }
+
+  override def onGuiClosed(): Unit = {
+    super.onGuiClosed()
+    if(Mods.JustEnoughItems.isModAvailable) {
+      resetJEIHighlights()
+    }
+  }
+
+  @Optional.Method(modid = Mods.IDs.JustEnoughItems)
+  private def drawJEIHighlights(): Unit = {
+    ModJEI.runtime.foreach { runtime =>
+      val overlay = runtime.getItemListOverlay
+      hoveredSlot match {
+        case Some(hovered) if !isInPlayerInventory(hovered) && isSelectiveSlot(hovered) =>
+          overlay.highlightStacks(overlay.getVisibleStacks.asScala.filter(hovered.isItemValid).asJavaCollection)
+        case _ => overlay.highlightStacks(List[ItemStack]().asJava)
+      }
+    }
+  }
+
+  @Optional.Method(modid = Mods.IDs.JustEnoughItems)
+  private def resetJEIHighlights(): Unit = ModJEI.runtime.foreach(_.getItemListOverlay.highlightStacks(List[Nothing]().asJavaCollection))
+}

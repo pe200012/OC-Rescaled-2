@@ -1,6 +1,6 @@
 # OpenComputers Bedienungsanleitung
 
-OpenComputers ist eine Modifikation, welche dauerhafte, modulare und hochkonfigurierbare [Computer](general/computer.md), [Server](item/server1.md), [Roboter](block/robot.md) und [Drohnen](item/drone.md) zum Spiel hinzufügt. In dieser Version ist jedes Gerät eine emulierte 64-Bit-RISC-V-Maschine: Computer, Server, Roboter und Tablets führen [Linux](general/linux.md) aus, während Drohnen und Mikrocontroller kleine Bare-Metal-Programme aus ihrem [EEPROM](item/eeprom.md) ausführen. Du programmierst sie in micropython oder C, siehe [Programmierung](general/programming.md).
+OpenComputers Rescaled² ist eine Modifikation, welche dauerhafte, modulare und hochkonfigurierbare [Computer](general/computer.md), [Server](item/server1.md), [Roboter](block/robot.md) und [Drohnen](item/drone.md) zum Spiel hinzufügt. In dieser Version ist jedes Gerät eine emulierte 64-Bit-RISC-V-Maschine: Computer, Server, Roboter und Tablets führen [Linux](general/linux.md) aus, während Drohnen und Mikrocontroller kleine Bare-Metal-Programme aus ihrem [EEPROM](item/eeprom.md) ausführen. Du programmierst sie in micropython oder C, siehe [Programmierung](general/programming.md).
 
 Um zu lernen, wie man die Bedienungsanleitung verwendet, siehe [die Seite über das Handbuch](item/manual.md) (der grüne Text ist ein Link - du kannst ihn anklicken!).
 

@@ -1,7 +1,7 @@
 [{
   "modid": "opencomputers",
-  "name": "OpenComputers Rescaled",
-  "description": "This mod adds modular computers and robots that can be programmed in Lua.",
+  "name": "OpenComputers Rescaled\u00b2",
+  "description": "Modular computers and robots that run Linux on an emulated RISC-V CPU. A fork of OpenComputers Rescaled.",
   "version": "${mod_version}",
   "mcversion": "1.12.2",
   "url": "http://oc.cil.li/",

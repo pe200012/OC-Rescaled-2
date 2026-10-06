@@ -1,0 +1,11 @@
+package ocsquared.common.recipe
+
+import net.minecraft.inventory.InventoryCrafting
+import net.minecraft.item.ItemStack
+import net.minecraft.util.ResourceLocation
+import net.minecraftforge.oredict.ShapedOreRecipe
+
+class ExtendedShapedOreRecipe(result: ItemStack, ingredients: AnyRef*) extends ShapedOreRecipe(null, result, ingredients*) {
+  override def getCraftingResult(inventory: InventoryCrafting): ItemStack =
+    ExtendedRecipe.addNBTToResult(this, super.getCraftingResult(inventory), inventory)
+}

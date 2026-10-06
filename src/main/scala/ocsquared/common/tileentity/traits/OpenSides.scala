@@ -1,0 +1,50 @@
+package ocsquared.common.tileentity.traits
+
+import ocsquared.Settings
+import net.minecraft.nbt.NBTTagCompound
+import net.minecraft.util.EnumFacing
+import net.minecraftforge.fml.relauncher.Side
+import net.minecraftforge.fml.relauncher.SideOnly
+
+/**
+  * @author Vexatos
+  */
+trait OpenSides extends TileEntity {
+  protected def SideCount: Int = EnumFacing.VALUES.length
+
+  protected def defaultState: Boolean = false
+
+  var openSides: Array[Boolean] = Array.fill(SideCount)(defaultState)
+
+  def compressSides: Byte = EnumFacing.values().lazyZip(openSides).foldLeft(0)((acc, entry) => acc | (if (entry._2) 1 << entry._1.ordinal() else 0)).toByte
+
+  def uncompressSides(byte: Byte): Array[Boolean] = EnumFacing.values().map(d => ((1 << d.ordinal()) & byte) != 0)
+
+  def isSideOpen(side: EnumFacing): Boolean = side != null && openSides(side.ordinal())
+
+  def setSideOpen(side: EnumFacing, value: Boolean): Unit = if (side != null && openSides(side.ordinal()) != value) {
+    openSides(side.ordinal()) = value
+  }
+
+  override def readFromNBTForServer(nbt: NBTTagCompound):Unit = {
+    super.readFromNBTForServer(nbt)
+    if (nbt.hasKey(Settings.namespace + "openSides"))
+      openSides = uncompressSides(nbt.getByte(Settings.namespace + "openSides"))
+  }
+
+  override def writeToNBTForServer(nbt: NBTTagCompound):Unit = {
+    super.writeToNBTForServer(nbt)
+    nbt.setByte(Settings.namespace + "openSides", compressSides)
+  }
+
+  @SideOnly(Side.CLIENT)
+  override def readFromNBTForClient(nbt: NBTTagCompound):Unit = {
+    super.readFromNBTForClient(nbt)
+    openSides = uncompressSides(nbt.getByte(Settings.namespace + "openSides"))
+  }
+
+  override def writeToNBTForClient(nbt: NBTTagCompound):Unit = {
+    super.writeToNBTForClient(nbt)
+    nbt.setByte(Settings.namespace + "openSides", compressSides)
+  }
+}

@@ -1,0 +1,54 @@
+package ocsquared.common.nanomachines
+
+import ocsquared.Settings
+import li.cil.oc.api
+import li.cil.oc.api.nanomachines.BehaviorProvider
+import li.cil.oc.api.nanomachines.Controller
+import ocsquared.server.PacketSender
+import ocsquared.util.PlayerUtils
+import net.minecraft.entity.player.EntityPlayer
+
+import scala.jdk.CollectionConverters.*
+import scala.collection.mutable
+
+object Nanomachines extends api.detail.NanomachinesAPI {
+  val providers = mutable.Set.empty[BehaviorProvider]
+
+  val serverControllers: mutable.WeakHashMap[EntityPlayer, ControllerImpl] = mutable.WeakHashMap.empty[EntityPlayer, ControllerImpl]
+  val clientControllers: mutable.WeakHashMap[EntityPlayer, ControllerImpl] = mutable.WeakHashMap.empty[EntityPlayer, ControllerImpl]
+
+  def controllers(player: EntityPlayer): mutable.WeakHashMap[EntityPlayer, ControllerImpl] = if (player.getEntityWorld.isRemote) clientControllers else serverControllers
+
+  override def addProvider(provider: BehaviorProvider): Unit = providers += provider
+
+  override def getProviders: java.lang.Iterable[BehaviorProvider] = providers.asJava
+
+  def getController(player: EntityPlayer): Controller = {
+    if (hasController(player)) controllers(player).getOrElseUpdate(player, new ControllerImpl(player))
+    else null
+  }
+
+  def hasController(player: EntityPlayer): Boolean = {
+    PlayerUtils.persistedData(player).getBoolean(Settings.namespace + "hasNanomachines")
+  }
+
+  def installController(player: EntityPlayer): Controller = {
+    if (!hasController(player)) {
+      PlayerUtils.persistedData(player).setBoolean(Settings.namespace + "hasNanomachines", true)
+    }
+    getController(player) // Initialize controller instance.
+  }
+
+  override def uninstallController(player: EntityPlayer): Unit = {
+    getController(player) match {
+      case controller: ControllerImpl =>
+        controller.dispose()
+        controllers(player) -= player
+        PlayerUtils.persistedData(player).removeTag(Settings.namespace + "hasNanomachines")
+        if (!player.getEntityWorld.isRemote) {
+          PacketSender.sendNanomachineConfiguration(player)
+        }
+      case _ => // Doesn't have one anyway.
+    }
+  }
+}
