@@ -1,113 +1,75 @@
 # OpenComputers Rescaled²
 
-A fork of [OpenComputers Rescaled](https://github.com/kappa-maintainer/OpenComputers) for Minecraft 1.12.2 on Cleanroom that replaces Lua with an emulated 64-bit RISC-V machine (OpenComputers II's [Sedna](https://github.com/fnuecke/sedna)). Computers, servers, robots and tablets run Linux; drones and microcontrollers run bare-metal programs from their EEPROM. Mod id and API (`li.cil.oc.api`) stay those of OpenComputers, so other mods' OpenComputers drivers keep working.
+A fork of [OpenComputers Rescaled][ocr] for Minecraft 1.12.2 on [Cleanroom][cleanroom]. Lua is gone. Every device is an emulated 64-bit RISC-V machine (RV64GC, using [Sedna][sedna]). Computers, servers, robots and tablets run Linux. Drones and microcontrollers run bare-metal programs from their EEPROM.
 
-A few useful links:
-* [Minecraft Forum Thread][mcf]
-* [Downloads][releases]
-* [Bug Tracker][issues]
-* [Wiki][wiki]
-* [Ingame Manual][ingame manual]
-* [IRC][irc]
-* [Community Forums][forums]
+The mod id and the API (`li.cil.oc.api`) are still OpenComputers', so other mods' OpenComputers drivers keep working. For the same reason, this mod cannot be installed alongside OpenComputers.
 
-### Experimental Builds
-You can find experimental builds [on the build server][github-actions]. Expect these to be generally more unstable than builds marked as releases. Use these **at your own risk**, but - when using the latest one - please *do* report bugs you encounter using them. Thanks!
+## What changed
 
-## License / Use in Modpacks
-This mod is [licensed under the **MIT license**](https://github.com/MightyPirates/OpenComputers/blob/master-MC1.7.10/LICENSE). All **assets are public domain**, unless otherwise stated; all are free to be distributed as long as the license / source credits are kept. This means you can use this mod in any mod pack **as you please**. I'd be happy to hear about you using it, though, just out of curiosity.
+- **Linux.** Machines boot a small [Buildroot][buildroot] Linux from the first hard drive, or run it live from memory when there is no drive. The image has BusyBox, `nano` and `vi`, MicroPython, Lua 5.4, the C compiler `tcc`, and Dropbear for `ssh`, `scp` and `sftp`.
+- **Persistence.** A running machine is saved with the world, memory included, and continues where it left off when its chunk loads again.
+- **Components.** Programs reach components through OpenComputers II's device bus protocol. The bus has libraries for MicroPython and Lua, a `component` shell command, and an `oc.h` header for C. Components keep their original methods. Robots have a MicroPython `robot` module.
+- **Disks.** Hard drives and floppy disks are virtio block devices (`/dev/vda`, …). Their images are stored in the world save under `opencomputers-riscv/disks`. The root file system is journaled. Floppies can be swapped while Linux runs.
+- **Screens.**
+  - The console is 80x24 characters.
+  - `/dev/fb0` is a 320×192 framebuffer.
+  - Keyboard and mouse input arrives through `/dev/input`.
+- **Networking.**
+  - Network cards are Ethernet interfaces that carry TCP/IP over cables, relays and wireless.
+  - The internet card is a NAT gateway to the real internet.
+  - Ports listed in the config are forwarded from the host, so you can `ssh` into a computer from outside the game.
+- **Drones and microcontrollers.** They run one C program from their EEPROM. You build it with `ocbuild` on an in-game Linux computer and write it to the EEPROM with `ocflash`.
+- **Flat hardware.** There is one kind of each CPU, case, screen and so on, and any slot takes any component. Machines differ in clock rate, memory and disk size. Power draw follows those.
+- **Manual.** The in-game manual is rewritten for all of the above, in English, German, French, Russian and Chinese.
 
-## Contributing
-### Assets and Localizations
-1. **Translations**  
-   Translations to other languages are very much appreciated. Using [the Weblate instance](https://weblate.asie.pl/projects/opencomputers/) is recommended, as it is the most user-friendly way to contribute translations. Alternatively, or if the Weblate service is not up, you can find the localization files [in this folder][localizations]. If a localization you wanted to create already exists, please take the time to see if the present one is complete - the strings change every so often, invalidating some of the translations. If you start a fresh localization, please base it off of the English one. If you add a new language, please also add it to [the pack.mcmeta][pack.mcmeta] file. Keep it sorted alphabetically, use the name and region Minecraft itself uses. If you don't know how to do that, that's OK, I'll do it later.
-2. **Textures**  
-   If you would like to contribute better textures for certain items or blocks, feel free to pull-request them. If you would like to contribute *alternative* textures, make it a resource pack, and post it on the forums, for example.
-3. **Documentation**  
-   Help with keeping the [wiki][] up to date would be *really* appreciated. If you notice anything amiss and know better, fix it. If you don't ask someone who does, then fix it. If you had a question answered, consider adding that information somewhere in the wiki where you would have expected to find that information.  
-   There are also the files containing the ingame help [for programs][manpages] and [for blocks and items][manual], which could probably be much better than they are right now. Improvements to them, and new ones (e.g. for the libraries, such as `text` or `sides`) would help a lot. Thanks!
-4. **Robot Names**  
-   Robots get a random name when placed (unless set with an Anvil). The list the names are chose from [can be found here][robot names]. Feel free to pull request additional names! *However*: since the list has grown to a considerable length already, here are the two basic criteria for new names: it must either be a real or fictional robot, or an AI that at least *appears* to be self-aware.
+Status: beta. It has been tested in the single-player client only, not on a dedicated server.
 
-### Bug fixes, features and scripts
-1. **Bugs**  
-   If you've found a bug, please report it in the [issue tracker][issues], after checking it has not been reported before - and possibly even fixed by now. If you think you can and have fixed it, feel free to do a pull request, I'll happily pull it if it looks all right to me - otherwise I'll gladly tell you what to change to get it merged.
-2. **Features**  
-   If you'd like to propose a new feature, take it to the [forums][] or the [issue tracker][issues]. If you'd like to contribute code that adds new features, please make sure to discuss the feature with me, first - again, the issue tracker is an OK place for this, there are a couple of feature requests there, already. Alternatively start a topic on the forums to discuss the feature, and / or stop by the [IRC][irc] to talk about it. Blind / unexpected feature pull requests might very well not make it, so save yourself some time by talking about it, first! Thanks.
-3. **Scripts / Programs**  
-   OpenComputers generates floppy disks in dungeon chests that can contain data from a selection of 'loot' directories. For example, the IRC client and OPPM (a package manager) are two programs that can be found on such loot disks. If you'd like to contribute a program that can be found this way, please have a look at [the loot readme][loot], which explains how to add custom loot. Simply pull request your loot!
-4. **Core Scripts**  
-   If you would like to contribute scripts to the "core" Lua code (which basically defines 'OpenOS'), please have a look at the [code conventions][] for Lua to save us all some time. Bug fixes are always welcome. Additional programs and features should be kept small. Bigger programs (rule of thumb: larger than 3KiB) should go onto loot disks.
-5. **Drivers**  
-   As of OC 1.4, mod interaction that was previously provided by OpenComponents is now fully integrated into OC itself. If you wish to contribute a driver for blocks from other mods, cool! Have a look at the [integration][] package to get an idea of how to structure modules and read the readme in that package for more information (in particular on additional criteria to get your PR merged).
+## Requirements
 
-#### Pull requests
-The following are a few quick guidelines on pull requests. That is to say they are not necessarily *rules*, so there may be exceptions and all that. Just try to stick to those points as a baseline.
-- Make sure your code is formatted properly.
-- Make sure it builds and works.
-- Try to keep your changes as minimal as possible. In particular, no whitespace changes in existing files, please.
-- Feel free to code in Java, but don't be surprised if I convert it to Scala later on, if I feel it makes the code more concise ;-)
-- When adding mod dependencies, keep them *weak*, i.e. make sure OC still works without that mod. Also, prefer adding a Gradle dependency over adding API class files to the repo.
-- [Squash](http://gitready.com/advanced/2009/02/10/squashing-commits-with-rebase.html) your commits!
+- Minecraft 1.12.2 with Cleanroom
+- [Scalar][scalar], for the Scala 3 runtime
 
-Also, and this should go without saying, your contributed code will also fall under OC's license, unless otherwise specified (in the super rare case of adding third-party stuff, add the according license information as a `LICENSE-???` file, please).
+## Building
 
-## Extending
-### In your own mod
-To use [the API][api] in your own mod, either get the API JAR from the [build server][github-actions], or if you're using [Gradle](http://gradle.org/), add a dependency to the maven repo:
-```groovy
-repositories {
-    maven { url = "http://maven.cil.li/" }
-}
-dependencies {
-    compile "li.cil.oc:OpenComputers:MC1.7.10-1.5.+:api"
-}
+Building needs JDK 25 and Docker. Buildroot compiles the Linux image inside Buildroot's CI Docker image. The first build takes a while; after that, the image is rebuilt only when its configuration changes.
+
+```sh
+git clone --recursive <this repository>
+./gradlew build        # mod jar in build/libs
+./gradlew runClient    # development client
 ```
-Adjust the version number accordingly to the version you'd like to build against.
 
-To run the mod in your development environment, download the [`dev` JAR from the build server][dev-jar] and drop it into your development environment's `eclipse/mods` (Eclipse) or `run/mods` (IntelliJ IDEA) folder.
+The code is in a few places:
 
-Alternatively, leave out the `api` classifier and you can build against the dev JAR directly. This way you don't have to add it to your mods folder, but you will have to add `-Dfml.coreMods.load=li.cil.oc.common.launch.TransformerLoader` to the VM options in your run configuration.
+- `riscv/` is the Minecraft-independent machine: board setup, devices, the terminal and the device bus. It is shaded into the mod jar.
+- `src/main/scala/ocsquared` is the mod itself.
+- `riscv/src/main/scripts` holds the guest-side libraries and tools, which are mounted in the machine at `/mnt/builtin`.
+- `deps/` holds Sedna, Ceres and Buildroot as submodules.
 
-If you have any questions, please do not hesitate to ask, either in the [forums][] or in the [IRC][irc]!
+## Credits
 
-### OpenComputers
-Want to tinker with the mod itself? Here is how - for IntelliJ IDEA users.
+- **[OpenComputers][oc]** by Florian "Sangar" Nücke, payonel, Vexatos, asie, magik6k and [all its contributors][oc-contributors]. Nearly everything here except the machine is their work.
+- **[OpenComputers Rescaled][ocr]** by kappa-maintainer, which ports OpenComputers to Cleanroom and Scala 3. This fork starts from it.
+- **Florian Nücke's [OpenComputers II][oc2]**, which provides several pieces:
+  - [Sedna][sedna], the RISC-V emulator;
+  - [Ceres][ceres], its serialization library;
+  - the [Buildroot tree][oc2-buildroot] the Linux image is built from;
+  - the device bus protocol and its guest libraries;
+  - the VT100 terminal.
+- **[CleanroomMC][cleanroom]** for Cleanroom and Scalar.
+- **The Linux image** is made from [Buildroot][buildroot], Linux, BusyBox, MicroPython, Lua, TinyCC, Dropbear and the other packages Buildroot builds. Each keeps its own license.
 
-**Important**
-- Make sure you have the Gradle plugin enabled in IntelliJ IDEA (File->Settings->Plugins).
-- Make sure you have the Scala plugin enabled.
+## License
 
-Clone the repository, then in it run  
-`gradlew setupDecompWorkspace`  
-to setup the workspace, including assets and such, then  
-`gradlew idea`  
-to create an IntelliJ IDEA project.
+The code is under the MIT license (see [LICENSE](LICENSE)). The assets are public domain unless stated otherwise. The licenses of the APIs used from other mods are in [LICENSE-mods](LICENSE-mods). The scripts taken from OpenComputers II are under the MIT license as well.
 
-Open the project and you will be asked to *import the Gradle project* (check your Event Log if you missed the pop-up). **Do so**. This will configure additionally referenced libraries.
-
-For more specific instructions, read [Steps to run master MC1.7.10 from IDEA][idea_1.7.10]
-
-In the case you wish to use Eclipse rather than IntelliJ IDEA, the process is mostly the same, except you must run `gradlew eclipse` rather than `gradlew idea`.
-
-
-
-[api]: https://github.com/MightyPirates/OpenComputers/tree/master-MC1.7.10/src/main/java/li/cil/oc/api
-[code conventions]: https://ocdoc.cil.li/lua_conventions
-[dev-jar]: https://ci.cil.li/view/OpenComputers/job/OpenComputers-MC1.7.10/
-[forums]: https://oc.cil.li/
-[github-actions]: https://github.com/MightyPirates/OpenComputers/actions
-[irc]: http://webchat.esper.net/?channels=#oc
-[issues]: https://github.com/MightyPirates/OpenComputers/issues?state=open
-[localizations]: https://github.com/MightyPirates/OpenComputers/tree/master-MC1.7.10/src/main/resources/assets/opencomputers/lang
-[loot]: https://github.com/MightyPirates/OpenComputers/tree/master-MC1.7.10/src/main/resources/assets/opencomputers/loot
-[manpages]: https://github.com/MightyPirates/OpenComputers/tree/master-MC1.7.10/src/main/resources/assets/opencomputers/loot/OpenOS/usr/man
-[manual]: https://github.com/MightyPirates/OpenComputers/tree/master-MC1.7.10/src/main/resources/assets/opencomputers/doc
-[mcf]: http://www.minecraftforum.net/topic/2201440-opencomputers-v122/
-[pack.mcmeta]: https://github.com/MightyPirates/OpenComputers/blob/master-MC1.7.10/src/main/resources/pack.mcmeta
-[releases]: https://github.com/MightyPirates/OpenComputers/releases
-[robot names]: https://github.com/MightyPirates/OpenComputers/blob/master-MC1.7.10/src/main/resources/assets/opencomputers/robot.names
-[wiki]: https://ocdoc.cil.li/
-[integration]: https://github.com/MightyPirates/OpenComputers/tree/master-MC1.7.10/src/main/scala/li/cil/oc/integration
-[ingame manual]: https://github.com/MightyPirates/OpenComputers/tree/master-MC1.7.10/src/main/resources/assets/opencomputers/doc
-[idea_1.7.10]: https://ocdoc.cil.li/tutorial:debug_1.7.10
+[oc]: https://github.com/MightyPirates/OpenComputers
+[oc-contributors]: https://github.com/MightyPirates/OpenComputers/graphs/contributors
+[ocr]: https://github.com/kappa-maintainer/OpenComputers
+[oc2]: https://github.com/fnuecke/oc2
+[sedna]: https://github.com/fnuecke/sedna
+[ceres]: https://github.com/fnuecke/ceres
+[oc2-buildroot]: https://github.com/fnuecke/buildroot
+[buildroot]: https://buildroot.org
+[cleanroom]: https://github.com/CleanroomMC
+[scalar]: https://github.com/CleanroomMC/Scalar
