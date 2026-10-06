@@ -59,6 +59,17 @@ The code is in a few places:
 - **[CleanroomMC][cleanroom]** for Cleanroom and Scalar.
 - **The Linux image** is made from [Buildroot][buildroot], Linux, BusyBox, MicroPython, Lua, TinyCC, Dropbear and the other packages Buildroot builds. Each keeps its own license.
 
+## AI use
+
+This fork was written with AI. Claude (Anthropic's Claude Opus 5.5, in Claude Code) wrote the following:
+
+- the changes to OpenComputers Rescaled;
+- the `oc-riscv` branch of the Buildroot fork;
+- the manual in all five languages;
+- this README.
+
+pe200012 directed the work, made the design decisions, and tested the changes in game before committing them. The manual's translations have not been proofread by native speakers. Code from OpenComputers, OpenComputers Rescaled and OpenComputers II is by those projects' authors, although some of it has been changed here.
+
 ## License
 
 The code is under the MIT license (see [LICENSE](LICENSE)). The assets are public domain unless stated otherwise. The licenses of the APIs used from other mods are in [LICENSE-mods](LICENSE-mods). The scripts taken from OpenComputers II are under the MIT license as well.
